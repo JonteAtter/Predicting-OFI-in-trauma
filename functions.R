@@ -5,10 +5,10 @@ devtools::install_github("SchlossLab/mikropml")
 library(stringr)
 library(mikropml)
 
-Jdata <- rio::import("~/Documents/GitHub/dynamic-identification-ofi/Data/swetrau-scrambled.csv")
-fmp <- rio::import("~/Documents/GitHub/dynamic-identification-ofi/Data/fmp-scrambled.csv")
-atg <- rio::import("~/Documents/GitHub/dynamic-identification-ofi/Data/atgarder-scrambled.csv")
-prob <- rio::import("~/Documents/GitHub/dynamic-identification-ofi/Data/problem-scrambled.csv")
+Jdata <- rio::import("~/Documents/GitHub/Data/swetrau-scrambled.csv")
+fmp <- rio::import("~/Documents/GitHub/Data/fmp-scrambled.csv")
+atg <- rio::import("~/Documents/GitHub/Data/atgarder-scrambled.csv")
+prob <- rio::import("~/Documents/GitHub/Data/problem-scrambled.csv")
 
 # Skapar en column med Ja/Nej och en med 1/0 för utfall.
 
