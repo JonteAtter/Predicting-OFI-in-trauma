@@ -1,11 +1,15 @@
 
 install.packages('bit64')
 install.packages("devtools")
+install.packages("naniar")
 devtools::install_github("SchlossLab/mikropml")
+install.packages('dplyr')
 library(stringr)
 library(mikropml)
+library(naniar)
+library(dplyr)
 
-Jdata <- rio::import("~/Documents/GitHub/Data/swetrau-scrambled.csv")
+data <- rio::import("~/Documents/GitHub/Data/swetrau-scrambled.csv")
 fmp <- rio::import("~/Documents/GitHub/Data/fmp-scrambled.csv")
 atg <- rio::import("~/Documents/GitHub/Data/atgarder-scrambled.csv")
 prob <- rio::import("~/Documents/GitHub/Data/problem-scrambled.csv")
@@ -28,41 +32,50 @@ dfc <- na.omit(prob)
 
 data.prob <- merge(dfc, data, by="id")
 
-#data.prob.c <-data.prob
-
 #skapa vektororer med önskade variabler
 
 #kontinuerliga variabler
-v1 <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","Ankomst_te")
+v1 <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct")
 
 #kvalitativa variabler
 v2 <- c("ProbJN","Deceased","pt_asa_preinjury")
-v3 <- c(v1,v2)
+v3 <- c("Ankomst_te","id")
 
-data.prob.c <- data.prob[v3]
-data.prob.c$ProbJN <- as.factor(data.prob.c$ProbJN)
-data.prob.c$Deceased <- as.factor(data.prob.c$Deceased)
-data.prob.c$pt_asa_preinjury <- as.factor(data.prob.c$pt_asa_preinjury)
+v4 <- c(v1,v2,v3)
 
-#Imputation av kvant med mean, BEHÖVER FIXA VARIABLER, EXV GCS  HAR 999 osv vilket gör den för hög!
-#Behöver också fixa funktioner som göra detta automatiskt vid byte av variabler
+dpc <- data.prob[v4]
 
-data.prob.c$ed_gcs_sum[which(is.na(data.prob.c$ed_gcs_sum))] <- mean(data.prob.c$ed_gcs_sum,na.rm = TRUE)
-data.prob.c$ed_sbp_value[which(is.na(data.prob.c$ed_sbp_value))] <- mean(data.prob.c$ed_sbp_value,na.rm = TRUE)
-data.prob.c$ISS[which(is.na(data.prob.c$ISS))] <- mean(data.prob.c$ISS,na.rm = TRUE)
-data.prob.c$dt_ed_first_ct[which(is.na(data.prob.c$dt_ed_first_ct))] <- mean(data.prob.c$dt_ed_first_ct,na.rm = TRUE)
+#Byt ut 999 och 99 mot NA, OBS at id och ev ankomst_ted inehåller dessa utan att vara fel? (Notera att "naniar" kan göra detta betydligt mer avancerat)
 
-#imputation av kval med vanligaste
+dpc <- dpc %>% dplyr::na_if(999)
+dpc <- dpc %>% dplyr::na_if(99)
 
-data.prob.c$pt_asa_preinjury[which(is.na(data.prob.c$pt_asa_preinjury))] <- tail(names(sort(table(data.prob.c$pt_asa_preinjury))), 1)
+#göra om kategoriska variabler till factorer, främst för numreriska likt ASA
+
+
+for(i in 1:ncol(dpc[v2])){
+  dpc[v2][,i] <- as.factor(dpc[v2][,i])
+}
+
+
+#Imputation av kvant med mean
+#    LÄGG in i looperna = funktion för ny column?
+
+
+# Kontinuerliga
+for(i in 1:ncol(dpc[v1])){
+  dpc[v1][is.na(dpc[v1][,i]), i] <- mean(dpc[v1][,i], na.rm = TRUE)
+}
+# Kategoriska
+for(i in 1:ncol(dpc[v2])){
+  dpc[v2][is.na(dpc[v2][,i]), i] <- tail(names(sort(table(dpc[v2][,i]))), 1)
+}
 
 #Sortera efter tid.och skapa vektor för 80% träning
 
-dpc <- data.prob.c
-
 dpc <-dpc[order(dpc$Ankomst_te),]
 
-tv <- c(1:round(nrow(dpc)*0.8, digits = 0))
+#tv <- c(1:round(nrow(dpc)*0.8, digits = 0))
 
 #simpelt första försök med mikropml
 
@@ -70,25 +83,3 @@ results <- run_ml(dpc,
                   'glmnet',
                   outcome_colname = 'ProbJN',
                   seed = 2019)
-                  sukfold = 2,
-                  cv_times = 5,
-                  training_frac = tv
-                  seed = 2019
-                  )
-# Nedan det jag gjorde innan mikropml för att leta ev prediktorer.
-
-glm.fit=glm(prob10~
-              pt_age_yrs+
-              ed_sbp_value+
-              ISS+
-              ed_gcs_sum+
-              ed_rr_value+
-              pt_asa_preinjury+
-              hosp_los_days+
-              dt_ed_first_ct+
-              dt_ed_emerg_proc
-      ,data=data.prob,family = binomial)
-summary(glm.fit)
-
-View(glm.fit)
-
