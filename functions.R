@@ -35,10 +35,10 @@ data.prob <- merge(dfc, data, by="id")
 #skapa vektororer med önskade variabler
 
 #kontinuerliga variabler
-v1 <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct")
+v1 <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","ed_rr_value")
 
 #kvalitativa variabler
-v2 <- c("ProbJN","Deceased","pt_asa_preinjury")
+v2 <- c("ProbJN","pt_asa_preinjury","Deceased")
 v3 <- c("Ankomst_te","id")
 
 v4 <- c(v1,v2,v3)
@@ -50,23 +50,28 @@ dpc <- data.prob[v4]
 dpc <- dpc %>% dplyr::na_if(999)
 dpc <- dpc %>% dplyr::na_if(99)
 
-#göra om kategoriska variabler till factorer, främst för numreriska likt ASA
+#fixa kollumn,"imput" för imputet 1/0 och lägg till imput i vektor för kategorisk variabler (v2)
+
+dpc$imput <-0
+for(i in 1:ncol(dpc)){
+  dpc$imput <- with(dpc, ifelse(is.na(dpc[i]) == TRUE | dpc$imput == 1 , 1, 0))
+}
+
+v2 <- c(v2, "imput")
+
+ #göra om kategoriska variabler till factorer, främst för numreriska likt ASA
 
 
 for(i in 1:ncol(dpc[v2])){
   dpc[v2][,i] <- as.factor(dpc[v2][,i])
 }
 
-
-#Imputation av kvant med mean
-#    LÄGG in i looperna = funktion för ny column?
-
-
-# Kontinuerliga
+#Imputation 
+# Kontinuerliga - mean
 for(i in 1:ncol(dpc[v1])){
   dpc[v1][is.na(dpc[v1][,i]), i] <- mean(dpc[v1][,i], na.rm = TRUE)
 }
-# Kategoriska
+# Kategoriska - most common
 for(i in 1:ncol(dpc[v2])){
   dpc[v2][is.na(dpc[v2][,i]), i] <- tail(names(sort(table(dpc[v2][,i]))), 1)
 }
@@ -75,11 +80,17 @@ for(i in 1:ncol(dpc[v2])){
 
 dpc <-dpc[order(dpc$Ankomst_te),]
 
-#tv <- c(1:round(nrow(dpc)*0.8, digits = 0))
+tv <- c(1:round(nrow(dpc)*0.8, digits = 0))
 
 #simpelt första försök med mikropml
+
+dpc <- dpc[c(v1,v2)]
 
 results <- run_ml(dpc,
                   'glmnet',
                   outcome_colname = 'ProbJN',
+                  kfold = 2,
+                  cv_times = 5,
+                  training_frac = tv,
                   seed = 2019)
+
