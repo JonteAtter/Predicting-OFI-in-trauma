@@ -8,6 +8,7 @@ library(stringr)
 library(mikropml)
 library(naniar)
 library(dplyr)
+library(labelled)
 
 setwd("/Users/jonatanattergrim/Documents/GitHub/")
 data.dir <- "./scrambled-data/"
@@ -44,10 +45,10 @@ data.prob <- merge(dfc, swetrau, by="id")
 ## Create vectors for variable, separated by type and use - Make sure "na.values.list" is up to date
 
 ## continuous variables
-cont.var <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_alarm_hosp","dt_ed_emerg_proc") 
+cont.var <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_ed_emerg_proc") 
 
 ## categorical variables
-cat.var <- c("probYN","Deceased","ed_intubated","host_care_level")
+cat.var <- c("probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
 
 ## Variables used for sorting
 time.id.var <- c("Ankomst_te","id")                                              
@@ -55,9 +56,14 @@ variables <- c(cont.var,cat.var,time.id.var)
 
 dpc <- data.prob[variables]
 
+# Create combined value for intubation status
+
+dpc$ed_intubated <- with(dpc, ifelse(`pre_intubated` == 1, 3, 0))
+
 ## A list that governs values in what variables that should be converted to NA
 na.values.list <- list(ed_gcs_sum = c(99, 999),
-                       ISS = c(0, 1, 2))
+                       ISS = c(0, 1, 2)
+                       pre_intubated = c(0, 999))
 
 #' Convert values in variable to NA
 #' 
@@ -126,4 +132,24 @@ results <- run_ml(dataset = dataset,
                   cv_times = 5,
                   training_frac = tv,
                   seed = 2019)
+##----------------------Table of Characteristics---------------------
+
+myVars <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_ed_emerg_proc","probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
+#catVars <- c("probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
+
+## tried using factorVars = cat.var and remove the categorical values from myVars but could not display the categorical values?
+
+dpc$ed_intubated <- factor(dpc$ed_intubated, levels = c(1,2,3), labels = c("Yes","No", "prehospital"))
+dpc$host_care_level <- factor(dpc$host_care_level, levels = c(1,2,3,4,5), 
+                              labels = c("Emergency department","General ward","surgical ward","specialist ward/Interimediare ward","intensive care unit"))
+var_label(dpc) <- list(probYN = " Opertunity for improvement", ed_gcs_sum = "GCS", ed_sbp_value = "Systolic Blood Pressure", dt_ed_first_ct = "Time to first CT", dt_ed_emerg_proc = "Time to definitive treatment", ed_intubated = "Intubated", host_care_level = "Highest level of care") ##Requires library(labelled)
+
+
+Table1 <- CreateTableOne(vars = myVars, strata = "probYN", data = dpc[, c(cat.var,cont.var)])
+
+
+knitr::kable(print(Table1,
+                   caption = "Table 1. Demographic, Physiological parameters, Injury Characteristics", showAllLevels = TRUE, printToggle = FALSE, varLabels = TRUE))
+
+Table1
 
