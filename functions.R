@@ -34,13 +34,17 @@ dfc <- problem[!missing.outcome, ]
 data.prob <- merge(dfc, swetrau, by="id")
 
 ## current audit filters: 
-## injury scene time more than 20 minutes: "dt_alarm_hosp" ???? Eller: "DateTime_LeaveScene"-"DateTime_ArrivalAtScene" 
+
 ## systolic blood pressure less than 90: "ed_sbp_value"
-## Glasgow coma scale less than 9 and not intubated: "ed_gcs_sum" + "ed_intubated". Måste "pre_intubated" vara med?
+## Glasgow coma scale less than 9 and not intubated: "ed_gcs_sum" + "ed_intubated".
 ## injury severity score more than 15 but not admitted to the intensive care unit: "ISS" + "host_care_level"
 ## time to acute intervention more than 60 minutes: "dt_ed_emerg_proc"
 ## time to computed tomography more than 30 minutes: "dt_ed_first_ct"
 ## death within 30 days after trauma: "Deceased"
+
+## Create new variable for intubation status: 1: Intubated in hospital: 2: Not intubated: 3 Intubated prehospital
+
+data.prob$intub <- with(data.prob, ifelse(`pre_intubated` == 1 & is.na(data.prob$pre_intubated) == FALSE, 3, `ed_intubated`))
 
 ## Create vectors for variable, separated by type and use - Make sure "na.values.list" is up to date
 
@@ -48,22 +52,17 @@ data.prob <- merge(dfc, swetrau, by="id")
 cont.var <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_ed_emerg_proc") 
 
 ## categorical variables
-cat.var <- c("probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
+cat.var <- c("probYN","Deceased","intub","host_care_level")
 
 ## Variables used for sorting
 time.id.var <- c("Ankomst_te","id")                                              
 variables <- c(cont.var,cat.var,time.id.var)
-
+model.variables <- c(cont.var,cat.var)
 dpc <- data.prob[variables]
-
-# Create combined value for intubation status
-
-dpc$ed_intubated <- with(dpc, ifelse(`pre_intubated` == 1, 3, 0))
 
 ## A list that governs values in what variables that should be converted to NA
 na.values.list <- list(ed_gcs_sum = c(99, 999),
-                       ISS = c(0, 1, 2)
-                       pre_intubated = c(0, 999))
+                       ISS = c(0, 1, 2))
 
 #' Convert values in variable to NA
 #' 
@@ -123,7 +122,7 @@ tv <- c(1:round(nrow(dpc.imputed)*0.8, digits = 0))
 
 #Create new dataframe - dataset - combining imputed data and corresponding variables if the data is imputed true/false.
 
-dataset <- cbind(dpc.imputed[c(cont.var,cat.var)], missing.indicator.variables)
+dataset <- cbind(dpc.imputed[model.variables], missing.indicator.variables)
 
 results <- run_ml(dataset = dataset,
                   method = "glmnet",
@@ -134,15 +133,16 @@ results <- run_ml(dataset = dataset,
                   seed = 2019)
 ##----------------------Table of Characteristics---------------------
 
-myVars <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_ed_emerg_proc","probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
+myVars <- model.variables
+#myVars <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_ed_emerg_proc","probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
 #catVars <- c("probYN","Deceased","ed_intubated","pre_intubated","host_care_level")
 
 ## tried using factorVars = cat.var and remove the categorical values from myVars but could not display the categorical values?
 
-dpc$ed_intubated <- factor(dpc$ed_intubated, levels = c(1,2,3), labels = c("Yes","No", "prehospital"))
+dpc$intub <- factor(dpc$intub, levels = c(1,2,3), labels = c("Yes","No", "prehospital"))
 dpc$host_care_level <- factor(dpc$host_care_level, levels = c(1,2,3,4,5), 
                               labels = c("Emergency department","General ward","surgical ward","specialist ward/Interimediare ward","intensive care unit"))
-var_label(dpc) <- list(probYN = " Opertunity for improvement", ed_gcs_sum = "GCS", ed_sbp_value = "Systolic Blood Pressure", dt_ed_first_ct = "Time to first CT", dt_ed_emerg_proc = "Time to definitive treatment", ed_intubated = "Intubated", host_care_level = "Highest level of care") ##Requires library(labelled)
+var_label(dpc) <- list(probYN = " Opertunity for improvement", ed_gcs_sum = "GCS", ed_sbp_value = "Systolic Blood Pressure", dt_ed_first_ct = "Time to first CT", dt_ed_emerg_proc = "Time to definitive treatment", intub = "Intubated", host_care_level = "Highest level of care") ##Requires library(labelled)
 
 
 Table1 <- CreateTableOne(vars = myVars, strata = "probYN", data = dpc[, c(cat.var,cont.var)])
