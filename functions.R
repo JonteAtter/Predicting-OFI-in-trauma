@@ -131,10 +131,10 @@ results.forest <- run_ml(dataset = dataset,
                   training_frac = tv,
                   seed = 2019)
 
-performance <- results$performance
-performnce2 <- results.forest$performance
+performance.LR <- as.list(results$performance)
+performance.RF <- as.list(results.forest$performance)
 
-
+performance <- do.call(rbind, Map(data.frame, "Logistic regression"=performance.LR, "Random forest"=performance.RF))
 
 ##----------------------Table of Characteristics---------------------
 
