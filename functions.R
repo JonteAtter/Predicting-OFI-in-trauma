@@ -9,6 +9,7 @@ library(mikropml)
 library(naniar)
 library(dplyr)
 library(labelled)
+library(tableone)
 
 setwd("/Users/jonatanattergrim/Documents/GitHub/")
 data.dir <- "./scrambled-data/"
@@ -22,8 +23,8 @@ problem$probYN <- with(problem, ifelse(
   `Problemomrade_ FMP` == "OK" |
   `Problemomrade_ FMP` == "Ok" |
   `Problemomrade_ FMP` == "Föredömligt handlagd",
-  'yes', 'no'))
-problem$prob10 <- with(problem, ifelse(`probYN` == "yes", 1, 0))
+  "Yes", "No"))
+problem$prob10 <- with(problem, ifelse(`probYN` == "Yes", 1, 0))
 
 ## Separate and store cases without known outcome
 missing.outcome <- is.na(problem[, "Problemomrade_ FMP"])
@@ -139,16 +140,60 @@ performance <- do.call(rbind, Map(data.frame, "Logistic regression"=performance.
 ##----------------------Table of Characteristics---------------------
 
 ## tried using factorVars = cat.var and remove the categorical values from model.variables but could not display the categorical values?
+## Works as intended for me, see below
 
-dpc$intub <- factor(dpc$intub, levels = c(1,2,3), labels = c("Inhospital","Not intubated", "Prehospital"))
-dpc$host_care_level <- factor(dpc$host_care_level, levels = c(1,2,3,4,5), 
-                              labels = c("Emergency department","General ward","surgical ward","specialist ward/Interimediare ward","intensive care unit"))
-dpc$Gender <- factor(dpc$Gender, levels = c("K","M"), labels = c("Female","Male"))
-var_label(dpc) <- list(probYN = " Opertunity for improvement", ed_gcs_sum = "GCS", ed_sbp_value = "Systolic Blood Pressure", dt_ed_first_ct = "Time to first CT", dt_ed_emerg_proc = "Time to definitive treatment", intub = "Intubated", host_care_level = "Highest level of care", pt_age_yrs ="Age", ed_rr_value ="Respiratory rate") ##Requires library(labelled)
+dpc$intub <- factor(
+    dpc$intub,
+    levels = c(1, 2, 3),
+    labels = c("Inhospital", "Not intubated", "Prehospital"))
+dpc$host_care_level <- factor(
+    dpc$host_care_level,
+    levels = c(1, 2, 3, 4, 5), 
+    labels = c("Emergency department",
+               "General ward",
+               "Surgical ward",
+               "Specialist ward/Intermediate ward",
+               "Intensive care unit"))
+dpc$Gender <- factor(
+    dpc$Gender,
+    levels = c("K", "M"),
+    labels = c("Female", "Male"))
+dpc$Deceased <- factor(
+    dpc$Deceased,
+    levels = c(TRUE, FALSE),
+    labels = c("Yes", "No"))
+dpc$probYN <- factor(
+    dpc$probYN,
+    levels = c("Yes", "No"),
+    labels = c("Opportunity for improvement", "No opportunity for improvement"))
+var_label(dpc) <- list(
+    probYN = "Opportunity for improvement",
+    ed_gcs_sum = "GCS",
+    ed_sbp_value = "Systolic Blood Pressure",
+    dt_ed_first_ct = "Time to first CT",
+    dt_ed_emerg_proc = "Time to definitive treatment",
+    intub = "Intubated",
+    host_care_level = "Highest level of care",
+    pt_age_yrs = "Age",
+    ed_rr_value = "Respiratory rate",
+    Deceased = "Dead at 30 days") ##Requires library(labelled)
 
+## You may want to reorder your table variables so that it's easier to read. I suggest demographics first, injury details, vital signs, outcomes, or something like that.
 
-Table1 <- CreateTableOne(vars = model.variables, strata = "probYN", data = dpc[, c(cat.var,cont.var)])
-
-
+vars <- model.variables[-grep("probYN", model.variables)]
+table1 <- list()
+table1$overall <- CreateTableOne(vars = vars, data = dpc, test = FALSE)
+table1$stratified <- CreateTableOne(vars = vars, strata = "probYN", data = dpc, test = FALSE)
+table1 <- lapply(table1, print, showAllLevels = TRUE, printToggle = FALSE, varLabels = TRUE)
+table1.combined <- do.call(cbind, table1)
+table1.combined <- cbind(rownames(table1.combined), table1.combined)
+rownames(table1.combined) <- NULL
+table1.combined <- as.data.frame(table1.combined)
+table1.combined[, grep("level", colnames(table1.combined))[2]] <- NULL # Remove duplicate level column
+colnames(table1.combined)[1] <- "Characteristic"
+colnames(table1.combined)[colnames(table1.combined) == "level"] <- "Level"
 knitr::kable(print(Table1,
-                   caption = "Table 1. Demographic, Physiological parameters, Injury Characteristics", showAllLevels = TRUE, printToggle = FALSE, varLabels = TRUE))
+                   caption = "Table 1. Sample Characteristics",
+                   showAllLevels = TRUE,
+                   printToggle = FALSE,
+                   varLabels = TRUE))
