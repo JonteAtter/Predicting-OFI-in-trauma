@@ -194,35 +194,6 @@ tv <- c(1:round(nrow(dpc.imputed)*0.8, digits = 0))
 ## corresponding variables if the data is imputed true/false.
 dataset <- cbind(dpc.imputed[model.variables], missing.indicator.variables)
 
-#################################################################################
-## The following was done for the preliminary results in the 2022 ALF application
-#################################################################################
-dataset <- na.omit(dpc[, c("ed_gcs_sum", "ed_sbp_value",
-                           "dt_ed_first_ct", "pt_age_yrs",
-                           "ed_rr_value", "ofi", "intub",
-                           "host_care_level", "Gender")])
-nglm <- glm(ofi ~ ., data = dataset, family = "binomial")
-pred <- ROCR::prediction(predict(nglm), dataset$ofi)
-auc <- unlist(ROCR::performance(pred, "auc")@y.values)
-pred.data <- data.frame(fn = unlist(pred@fn), tn = unlist(pred@tn), fp = unlist(pred@fp), tp = unlist(pred@tp), cutoff = unlist(pred@cutoffs))
-pred.data$precision <- with(pred.data, tp/(tp + fp))
-pred.data$recall <- with(pred.data, tp/(tp + fn))
-pred.data$f1 <- with(pred.data, 2*(precision * recall)/(precision + recall))
-## Assuming that we accept a reduction in "true positives" with 100
-## cases, i.e. from 588 to 488.
-tp <- 488
-lim.data <- pred.data[pred.data$tp == tp, ]
-fp <- min(lim.data$fp)
-
-
-results <- run_ml(dataset = dataset,
-                  method = 'glmnet',
-                  outcome_colname = "ofi",
-                  kfold = 5,
-                  cv_times = 5,
-                  training_frac = 0.8,
-                  seed = 2019)
-
 results <- run_ml(dataset = dataset,
                   method = 'glmnet',
                   outcome_colname = "ofi",
