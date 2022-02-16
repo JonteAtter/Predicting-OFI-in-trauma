@@ -1,60 +1,135 @@
+## setwd("/Users/jonatanattergrim/Documents/GitHub/")
+## data.dir <- "./scrambled-data/"
+
+## Install packages
 install.packages('bit64')
 install.packages("devtools")
-install.packages("naniar")
+## install.packages("naniar")
 devtools::install_github("SchlossLab/mikropml")
 install.packages('dplyr')
 
+## Load packages
 library(stringr)
 library(mikropml)
-library(naniar)
+## library(naniar)
 library(dplyr)
 library(labelled)
 library(tableone)
+library(DBI)
+library(RMariaDB)
+library(dotenv)
 
-setwd("/Users/jonatanattergrim/Documents/GitHub/")
-data.dir <- "./scrambled-data/"
+## Setup reading from the database
 dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem"))
-datasets <- lapply(dataset.names, function(dataset.name) rio::import(paste0(data.dir, dataset.name, "-scrambled.csv")))
+db.name <- "opportunities_for_improvement"
+scrambled <- FALSE ## Set to false if you are working with the real
+                   ## data. Note that this can only be done on the
+                   ## server
+if (scrambled) dataset.names <- paste0(dataset.names, "_scrambled")
+if (scrambled) db.name <- paste0(db.name, "_scrambled")
+
+## Connect to database
+conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
+                       user = Sys.getenv("MARIADB_USER"),
+                       password = Sys.getenv("MARIADB_PASSWORD"),
+                       db = db.name)
+
+## Read data
+datasets <- lapply(dataset.names, function(dataset.name) dbReadTable(conn = conn, name = dataset.name))
 attach(datasets)
 
-# Column with yes/no and 1/0 for problems
-problem$probYN <- with(problem, ifelse(
-  `Problemomrade_ FMP` == "ok" |
-  `Problemomrade_ FMP` == "OK" |
-  `Problemomrade_ FMP` == "Ok" |
-  `Problemomrade_ FMP` == "Föredömligt handlagd",
+## If working with the real data we need to create the id variable for
+## matching by first reformatting the date and time of arrival to the
+## trauma unit so that it is the same in all datasets, and then create
+## the id variable by merging the date and time variable with personal
+## identifiers
+if (!scrambled) {
+    swetrau$arrival <- as.POSIXct(strptime(swetrau$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
+    fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
+    problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
+    swetrau$id <- paste(swetrau$arrival, swetrau$PersonIdentity, swetrau$TempIdentity)
+    fmp$id <- paste(fmp$arrival, fmp$Personnummer, fmp$Reservnummer)
+    problem$id <- paste(problem$arrival, problem$Personnummer, problem$Reservnummer)
+}
+
+## Combine datasets
+combined.datasets <- merge(fmp, problem, by = "id", all.x = TRUE)
+combined.datasets <- merge(combined.datasets, swetrau, by = "id", all.x = TRUE)
+
+## Column with yes/no and 1/0 for problems
+levels.Problemomrade_.FMP <- unique(combined.datasets$Problemomrade_.FMP)
+original.levels.Problemomrade_.FMP <- c(NA, "OK",
+                                        "Triage på akutmottagningen",
+                                        "Resurs", "Lång tid till op",
+                                        "Lång tid till DT", "Vårdnivå",
+                                        "Traumakriterier/styrning",
+                                        "Missad skada", "Kommunikation",
+                                        "Neurokirurg",
+                                        "Föredömligt handlagd",
+                                        "Logistik/teknik", "Ok",
+                                        "Dokumentation", "Dokumetation",
+                                        "bristande rutin", "ok",
+                                        "Handläggning", "kompetens brist",
+                                        "Tertiär survey")
+if (!identical(levels.Problemomrade_.FMP, original.levels.Problemomrade_.FMP))
+    stop ("Levels in Problemomrade._FMP have changed.")
+combined.datasets$probYN <- with(combined.datasets, ifelse(
+  `Problemomrade_.FMP` == "ok" |
+  `Problemomrade_.FMP` == "OK" |
+  `Problemomrade_.FMP` == "Ok" |
+  `Problemomrade_.FMP` == "Föredömligt handlagd",
   "Yes", "No"))
-problem$prob10 <- with(problem, ifelse(`probYN` == "Yes", 1, 0))
+combined.datasets$prob10 <- with(combined.datasets, ifelse(`probYN` == "Yes", 1, 0))
+
+## Clean variable indicating if the the care quality process has been completed
+levels.VK_avslutad <- unique(combined.datasets$VK_avslutad)
+original.levels.VK_avslutad <- c("Ja", NA, "ja", "Nej")
+if (!identical(levels.VK_avslutad, original.levels.VK_avslutad))
+    stop ("Levels in VK_avslutad have changed.")
+combined.datasets$quality.process.done <- with(combined.datasets,
+                                               ifelse(VK_avslutad == "Ja", "Yes",
+                                               ifelse(VK_avslutad == "ja", "Yes",
+                                               ifelse(VK_avslutad == "Nej", "No", NA))))
+
+## Create outcome, which is either Yes or No:
+##
+## Yes: The case has been reviewed in a meeting and the consensus was
+## that there were opportunities for improvement
+## 
+## No: The consensus was that there were no opportunities for
+## improvement, or the nurses in the initial review did not send the
+## case for review because everything was okay.
+combined.datasets$ofi <- with(combined.datasets,
+                              ifelse(quality.process.done == "Yes" & probYN == "Yes", "Yes",
+                              ifelse(quality.process.done == "Yes" & probYN == "No", "No", NA)))
+combined.datasets$ofi[with(combined.datasets, quality.process.done == "Yes" & is.na(probYN))] <- "No"
 
 ## Separate and store cases without known outcome
-missing.outcome <- is.na(problem[, "Problemomrade_ FMP"])
+missing.outcome <- is.na(combined.datasets$ofi)
 n.missing.outcome <- sum(missing.outcome)
-dfc <- problem[!missing.outcome, ]
-
-## Combine swetrau and problem datasets
-data.prob <- merge(dfc, swetrau, by="id")
+data.prob <- combined.datasets[!missing.outcome, ]
 
 ## Create new variable for intubation status: 1: Intubated in hospital: 2: Not intubated: 3 Intubated prehospital
-
 data.prob$intub <- with(data.prob, ifelse(`pre_intubated` == 1 & is.na(data.prob$pre_intubated) == FALSE, 3, `ed_intubated`))
 
 ## Create vectors for variable, separated by type and use - Make sure "na.values.list" is up to date
 
 ## continuous variables
-cont.var <- c("ed_gcs_sum","ed_sbp_value","ISS","dt_ed_first_ct","dt_ed_emerg_proc","pt_age_yrs","ed_rr_value") 
+cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value") 
 
 ## categorical variables
-cat.var <- c("probYN","Deceased","intub","host_care_level","Gender")
+cat.var <- c("ofi", "Deceased", "intub", "host_care_level", "Gender")
 
 ## Variables used for sorting
-time.id.var <- c("Ankomst_te","id")                                              
-variables <- c(cont.var,cat.var,time.id.var)
-model.variables <- c(cont.var,cat.var)
+time.id.var <- c("arrival", "id")                                              
+variables <- c(cont.var, cat.var, time.id.var)
+model.variables <- c(cont.var, cat.var)
 dpc <- data.prob[variables]
 
 ## A list that governs values in what variables that should be converted to NA
 na.values.list <- list(ed_gcs_sum = c(99, 999),
-                       ISS = c(0, 1, 2)) ##### RR = 99, could be real?
+                       ed_rr_value_ = c(99), ## The manual states that RR should not be over 70
+                       ISS = c(0, 1, 2)) 
 
 #' Convert values in variable to NA
 #' 
@@ -87,49 +162,81 @@ missing.indicator.variables[, c("probYN", "Ankomst_te", "id")] <- NULL
 names(missing.indicator.variables) <- paste0("missing_", names(missing.indicator.variables))
 
 ## Convert categorical values to factors
-
 for (variable.name in cat.var) {
    dpc[, variable.name] <- as.factor(dpc[, variable.name])
 }
 
-#Imputation 
+## Convert continuous variables to numeric
+for (variable.name in cont.var) {
+    dpc[, variable.name] <- as.numeric(dpc[, variable.name])
+}
+
+## Imputation 
 dpc.imputed <- as.data.frame(lapply(dpc, function(data) {
     new.data <- data
     if (is.factor(data))
-        new.data <- as.character(data)              ### change to character to be able to identify/separate?
+        new.data <- as.character(data) ## change to character to be able to identify/separate?
     if (is.numeric(data))
-        new.data[is.na(data)] <- mean(new.data, na.rm = TRUE)                   ## continuous  - mean
+        new.data[is.na(data)] <- mean(new.data, na.rm = TRUE) ## continuous  - mean
     if (is.character(new.data))                                                 
-        new.data[is.na(data)] <- tail(names(sort(table(new.data))), 1)          ## categorical - most common
+        new.data[is.na(data)] <- tail(names(sort(table(new.data))), 1) ## categorical - most common
     if (is.factor(data))
         new.data <- as.factor(new.data)
     return (new.data)
 }))
 
-#Sort data according to time and create 80% vector for training set selection
-
-dpc.imputed <-dpc.imputed[order(dpc.imputed$Ankomst_te),]
-
+## Sort data according to time and create 80% vector for training set
+## selection
+dpc.imputed <-dpc.imputed[order(dpc.imputed$arrival), ]
 tv <- c(1:round(nrow(dpc.imputed)*0.8, digits = 0))
 
-#Create new dataframe - dataset - combining imputed data and corresponding variables if the data is imputed true/false.
-
+## Create new dataframe - dataset - combining imputed data and
+## corresponding variables if the data is imputed true/false.
 dataset <- cbind(dpc.imputed[model.variables], missing.indicator.variables)
+
+#################################################################################
+## The following was done for the preliminary results in the 2022 ALF application
+#################################################################################
+dataset <- na.omit(dpc[, c("ed_gcs_sum", "ed_sbp_value",
+                           "dt_ed_first_ct", "pt_age_yrs",
+                           "ed_rr_value", "ofi", "intub",
+                           "host_care_level", "Gender")])
+nglm <- glm(ofi ~ ., data = dataset, family = "binomial")
+pred <- ROCR::prediction(predict(nglm), dataset$ofi)
+auc <- unlist(ROCR::performance(pred, "auc")@y.values)
+pred.data <- data.frame(fn = unlist(pred@fn), tn = unlist(pred@tn), fp = unlist(pred@fp), tp = unlist(pred@tp), cutoff = unlist(pred@cutoffs))
+pred.data$precision <- with(pred.data, tp/(tp + fp))
+pred.data$recall <- with(pred.data, tp/(tp + fn))
+pred.data$f1 <- with(pred.data, 2*(precision * recall)/(precision + recall))
+## Assuming that we accept a reduction in "true positives" with 100
+## cases, i.e. from 588 to 488.
+tp <- 488
+lim.data <- pred.data[pred.data$tp == tp, ]
+fp <- min(lim.data$fp)
+
 
 results <- run_ml(dataset = dataset,
                   method = 'glmnet',
-                  outcome_colname = "probYN",
-                  kfold = 2,
+                  outcome_colname = "ofi",
+                  kfold = 5,
+                  cv_times = 5,
+                  training_frac = 0.8,
+                  seed = 2019)
+
+results <- run_ml(dataset = dataset,
+                  method = 'glmnet',
+                  outcome_colname = "ofi",
+                  kfold = 5,
                   cv_times = 5,
                   training_frac = tv,
-                  seed = 2019)
+                  seed = 2019)p
 
 results.forest <- run_ml(dataset = dataset,
                   method = 'rf',
-                  outcome_colname = "probYN",
-                  kfold = 2,
+                  outcome_colname = "ofi",
+                  kfold = 5,
                   cv_times = 5,
-                  training_frac = tv,
+                  training_frac = 0.8,
                   seed = 2019)
 
 performance.LR <- as.list(results$performance)
