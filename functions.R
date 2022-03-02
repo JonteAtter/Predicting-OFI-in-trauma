@@ -18,20 +18,25 @@ library(tableone)
 library(DBI)
 library(RMariaDB)
 library(dotenv)
+library(keyring)
 
 ## Setup reading from the database
 dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem"))
 db.name <- "opportunities_for_improvement"
-scrambled <- FALSE ## Set to false if you are working with the real
-                   ## data. Note that this can only be done on the
-                   ## server
-if (scrambled) dataset.names <- paste0(dataset.names, "_scrambled")
+scrambled <- TRUE ## Set to FALSE if you're working with the real data
+if (scrambled) dataset.names <- setNames(paste0(dataset.names, "_scrambled"), nm = dataset.names)
 if (scrambled) db.name <- paste0(db.name, "_scrambled")
+
+## Setup keyring
+username <- "scrambled" ## Replace scrambled with your actual username
+## Only do this the first time
+## keyring::key_set(service = db.name,
+##                  username = username) 
 
 ## Connect to database
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
-                       user = Sys.getenv("MARIADB_USER"),
-                       password = Sys.getenv("MARIADB_PASSWORD"),
+                       user = username,
+                       password = keyring::key_get(db.name, username),
                        db = db.name)
 
 ## Read data
@@ -39,14 +44,14 @@ datasets <- lapply(dataset.names, function(dataset.name) dbReadTable(conn = conn
 attach(datasets)
 
 ## If working with the real data we need to create the id variable for
-## matching by first reformatting the date and time of arrival to the
-## trauma unit so that it is the same in all datasets, and then create
-## the id variable by merging the date and time variable with personal
-## identifiers
+## matching by first reformatting the date and time of arrival (also
+## necessary for scrambled data) to the trauma unit so that it is the
+## same in all datasets, and then create the id variable by merging
+## the date and time variable with personal identifiers
+swetrau$arrival <- as.POSIXct(strptime(swetrau$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
+fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
+problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
 if (!scrambled) {
-    swetrau$arrival <- as.POSIXct(strptime(swetrau$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
-    fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
-    problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
     swetrau$id <- paste(swetrau$arrival, swetrau$PersonIdentity, swetrau$TempIdentity)
     fmp$id <- paste(fmp$arrival, fmp$Personnummer, fmp$Reservnummer)
     problem$id <- paste(problem$arrival, problem$Personnummer, problem$Reservnummer)
@@ -57,20 +62,20 @@ combined.datasets <- merge(fmp, problem, by = "id", all.x = TRUE)
 combined.datasets <- merge(combined.datasets, swetrau, by = "id", all.x = TRUE)
 
 ## Column with yes/no and 1/0 for problems
-levels.Problemomrade_.FMP <- unique(combined.datasets$Problemomrade_.FMP)
-original.levels.Problemomrade_.FMP <- c(NA, "OK",
-                                        "Triage på akutmottagningen",
-                                        "Resurs", "Lång tid till op",
-                                        "Lång tid till DT", "Vårdnivå",
-                                        "Traumakriterier/styrning",
-                                        "Missad skada", "Kommunikation",
-                                        "Neurokirurg",
-                                        "Föredömligt handlagd",
-                                        "Logistik/teknik", "Ok",
-                                        "Dokumentation", "Dokumetation",
-                                        "bristande rutin", "ok",
-                                        "Handläggning", "kompetens brist",
-                                        "Tertiär survey")
+levels.Problemomrade_.FMP <- sort(unique(combined.datasets$Problemomrade_.FMP))
+original.levels.Problemomrade_.FMP <- sort(c(NA, "OK",
+                                             "Triage på akutmottagningen",
+                                             "Resurs", "Lång tid till op",
+                                             "Lång tid till DT", "Vårdnivå",
+                                             "Traumakriterier/styrning",
+                                             "Missad skada", "Kommunikation",
+                                             "Neurokirurg",
+                                             "Föredömligt handlagd",
+                                             "Logistik/teknik", "Ok",
+                                             "Dokumentation", "Dokumetation",
+                                             "bristande rutin", "ok",
+                                             "Handläggning", "kompetens brist",
+                                             "Tertiär survey"))
 if (!identical(levels.Problemomrade_.FMP, original.levels.Problemomrade_.FMP))
     stop ("Levels in Problemomrade._FMP have changed.")
 combined.datasets$probYN <- with(combined.datasets, ifelse(
@@ -82,8 +87,8 @@ combined.datasets$probYN <- with(combined.datasets, ifelse(
 combined.datasets$prob10 <- with(combined.datasets, ifelse(`probYN` == "Yes", 1, 0))
 
 ## Clean variable indicating if the the care quality process has been completed
-levels.VK_avslutad <- unique(combined.datasets$VK_avslutad)
-original.levels.VK_avslutad <- c("Ja", NA, "ja", "Nej")
+levels.VK_avslutad <- sort(unique(combined.datasets$VK_avslutad))
+original.levels.VK_avslutad <- sort(c("Ja", NA, "ja", "Nej"))
 if (!identical(levels.VK_avslutad, original.levels.VK_avslutad))
     stop ("Levels in VK_avslutad have changed.")
 combined.datasets$quality.process.done <- with(combined.datasets,
@@ -200,7 +205,7 @@ results <- run_ml(dataset = dataset,
                   kfold = 5,
                   cv_times = 5,
                   training_frac = tv,
-                  seed = 2019)p
+                  seed = 2019)
 
 results.forest <- run_ml(dataset = dataset,
                   method = 'rf',
@@ -240,8 +245,8 @@ dpc$Deceased <- factor(
     dpc$Deceased,
     levels = c(TRUE, FALSE),
     labels = c("Yes", "No"))
-dpc$probYN <- factor(
-    dpc$probYN,
+dpc$ofi <- factor(
+    dpc$ofi,
     levels = c("Yes", "No"),
     labels = c("Opportunity for improvement", "No opportunity for improvement"))
 var_label(dpc) <- list(
@@ -258,7 +263,7 @@ var_label(dpc) <- list(
 
 ## You may want to reorder your table variables so that it's easier to read. I suggest demographics first, injury details, vital signs, outcomes, or something like that.
 
-vars <- model.variables[-grep("probYN", model.variables)]
+vars <- model.variables[-grep("ofi", model.variables)]
 table1 <- list()
 table1$overall <- CreateTableOne(vars = vars, data = dpc, test = FALSE)
 table1$stratified <- CreateTableOne(vars = vars, strata = "probYN", data = dpc, test = FALSE)
@@ -270,7 +275,7 @@ table1.combined <- as.data.frame(table1.combined)
 table1.combined[, grep("level", colnames(table1.combined))[2]] <- NULL # Remove duplicate level column
 colnames(table1.combined)[1] <- "Characteristic"
 colnames(table1.combined)[colnames(table1.combined) == "level"] <- "Level"
-knitr::kable(print(Table1,
+knitr::kable(print(table1.combined,
                    caption = "Table 1. Sample Characteristics",
                    showAllLevels = TRUE,
                    printToggle = FALSE,
