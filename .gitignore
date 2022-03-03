@@ -2,3 +2,8 @@ PROJECT.org
 **/*~
 .env
 /scrambled-data/
+.Rproj.user
+dynamic-identification-ofi.Rproj
+.Rhistory
+.RData
+.Rhistory
