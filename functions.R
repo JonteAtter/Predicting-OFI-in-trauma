@@ -28,10 +28,10 @@ if (scrambled) dataset.names <- setNames(paste0(dataset.names, "_scrambled"), nm
 if (scrambled) db.name <- paste0(db.name, "_scrambled")
 
 ## Setup keyring
-username <- "scrambled" ## Replace scrambled with your actual username
+username <- "jonatana" ## Replace scrambled with your actual username
 ## Only do this the first time
-## keyring::key_set(service = db.name,
-##                  username = username) 
+keyring::key_set(service = db.name,
+                 username = username) 
 
 ## Connect to database
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
@@ -250,7 +250,7 @@ dpc$ofi <- factor(
     levels = c("Yes", "No"),
     labels = c("Opportunity for improvement", "No opportunity for improvement"))
 var_label(dpc) <- list(
-    probYN = "Opportunity for improvement",
+    ofi = "Opportunity for improvement",
     ed_gcs_sum = "GCS",
     ed_sbp_value = "Systolic Blood Pressure",
     dt_ed_first_ct = "Time to first CT",
