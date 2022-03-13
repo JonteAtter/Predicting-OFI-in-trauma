@@ -190,7 +190,7 @@ dpc.imputed <- as.data.frame(lapply(dpc, function(data) {
     return (new.data)
 }))
 
-## Sort data according to time and create 80% vector for training set
+## Sort data according to time and create 80% training vector for training set
 ## selection
 dpc.imputed <-dpc.imputed[order(dpc.imputed$arrival), ]
 tv <- c(1:round(nrow(dpc.imputed)*0.8, digits = 0))
