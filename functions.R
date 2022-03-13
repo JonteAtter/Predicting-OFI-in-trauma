@@ -30,8 +30,8 @@ if (scrambled) db.name <- paste0(db.name, "_scrambled")
 ## Setup keyring
 username <- "jonatana" ## Replace scrambled with your actual username
 ## Only do this the first time
-keyring::key_set(service = db.name,
-                 username = username) 
+##keyring::key_set(service = db.name,
+##                 username = username) 
 
 ## Connect to database
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
@@ -123,7 +123,7 @@ data.prob$intub <- with(data.prob, ifelse(`pre_intubated` == 1 & is.na(data.prob
 cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value") 
 
 ## categorical variables
-cat.var <- c("ofi", "Deceased", "intub", "host_care_level", "Gender")
+cat.var <- c("ofi", "res_survival", "intub", "host_care_level", "Gender")
 
 ## Variables used for sorting
 time.id.var <- c("arrival", "id")                                              
@@ -241,9 +241,9 @@ dpc$Gender <- factor(
     dpc$Gender,
     levels = c("K", "M"),
     labels = c("Female", "Male"))
-dpc$Deceased <- factor(
-    dpc$Deceased,
-    levels = c(TRUE, FALSE),
+dpc$res_survival <- factor(
+    dpc$res_survival,
+    levels = c(1, 2),     ########## OK, det blir fel med deceased - som blir bara NA.
     labels = c("Yes", "No"))
 dpc$ofi <- factor(
     dpc$ofi,
@@ -259,14 +259,14 @@ var_label(dpc) <- list(
     host_care_level = "Highest level of care",
     pt_age_yrs = "Age",
     ed_rr_value = "Respiratory rate",
-    Deceased = "Dead at 30 days") ##Requires library(labelled)
+    res_survival = "Dead at 30 days") ##Requires library(labelled)
 
 ## You may want to reorder your table variables so that it's easier to read. I suggest demographics first, injury details, vital signs, outcomes, or something like that.
 
 vars <- model.variables[-grep("ofi", model.variables)]
 table1 <- list()
 table1$overall <- CreateTableOne(vars = vars, data = dpc, test = FALSE)
-table1$stratified <- CreateTableOne(vars = vars, strata = "probYN", data = dpc, test = FALSE)
+table1$stratified <- CreateTableOne(vars = vars, strata = "ofi", data = dpc, test = FALSE)
 table1 <- lapply(table1, print, showAllLevels = TRUE, printToggle = FALSE, varLabels = TRUE)
 table1.combined <- do.call(cbind, table1)
 table1.combined <- cbind(rownames(table1.combined), table1.combined)
