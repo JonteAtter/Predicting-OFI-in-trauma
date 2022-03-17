@@ -86,7 +86,68 @@ combined.datasets$probYN <- with(combined.datasets, ifelse(
   "Yes", "No"))
 combined.datasets$prob10 <- with(combined.datasets, ifelse(`probYN` == "Yes", 1, 0))
 
+
+####
+# Converting preventable deaths to OFI
+###
+
+## Preliminary code. Need to change Fr1.1 to the right one after gunilla answers the mail
+
+# combined.datasets$preventable <- with(combined.datasets, ifelse(`tra_DodsfallsanalysGenomford` == 1 && `Fr1.1` == 1, "Yes", "No"))
+# combined.datasets$probYN <- with(combined.datasets, ifelse(`preventable` == "Yes", "Yes", `ProbYN`))
+
+###
+# Clean audit-filters to Yes/No to get false negatives
+###
+
+## Need to add function to se if levels change
+# Created new dataframe vk (vårdkonferans), just to make it more readable.
+# Need to integrate VK into combined.dataset. I dont know how do to it in a clean way?
+
+vk <- combined.datasets[ , grepl( "VK" , names( combined.datasets ))]
+
+vk[vk == "Ja" | vk == "ja"] <- "Yes"
+vk[vk == "Nej" | vk == "nej" | vk == "nj\r\nNej" | vk == "nj"] <- "No"
+vk[vk != "Yes" & vk != "No"] <- NA
+
+#need to have all audit filters be No except avslutad that needs to be Yes. VK_annat could be anything?  
+#Need to be a simple way to make the code more efficient? 
+
+
+audit.filter <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
+                  "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
+                  "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
+                  "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE")
+
+#would like to use the vector audit.filter in the code below, but I couldn't get it to work.
+
+### When integrated into combined.dataset, i need to add statement that combined.dataset$ofi == "Yes" in the false neg.
+
+vk$false.negative <- with(vk, ifelse(`VK_hlr_thorak` == "No" &
+                                       `VK_sap_less90` == "No" &
+                                       `VK_leverskada` == "No" &
+                                       `VK_gcs_less9_ej_intubTE` == "No" &
+                                       `VK_mjaltskada` == "No" &
+                                       `VK_mer_30min_DT` == "No" &
+                                       `VK_mass_transf` == "No" &
+                                       `VK_mer_60min_interv` == "No" &
+                                       `VK_iss_15_ej_iva` == "No" &
+                                       `VK_ej_trombrof_TBI_72h` == "No" &
+                                       `VK_iss_15_ej_TE` == "No" &
+                                       `VK_ej_trombrof_TBI_72h` == "No" &
+                                       `VK_avslutad` == "Yes" 
+                                       , "Yes", "No"))
+
+length(which(vk$false.negative=="Yes"))
+unique(vk$false.negative)
+
+#VK_iss_15_ej_TE have nn == NA? VK_annat have "nj\r\nNej" and "nj". == No?
+# The rest have ja, Ja , nej , Nej
+
+
+
 ## Clean variable indicating if the the care quality process has been completed
+
 levels.VK_avslutad <- sort(unique(combined.datasets$VK_avslutad))
 original.levels.VK_avslutad <- sort(c("Ja", NA, "ja", "Nej"))
 if (!identical(levels.VK_avslutad, original.levels.VK_avslutad))
@@ -134,7 +195,7 @@ dpc <- data.prob[variables]
 ## A list that governs values in what variables that should be converted to NA
 na.values.list <- list(ed_gcs_sum = c(99, 999),
                        ed_rr_value_ = c(99), ## The manual states that RR should not be over 70
-                       ISS = c(0, 1, 2)) 
+                       ISS = c(0)) 
 
 #' Convert values in variable to NA
 #' 
