@@ -30,8 +30,8 @@ if (scrambled) db.name <- paste0(db.name, "_scrambled")
 ## Setup keyring
 username <- "jonatana" ## Replace scrambled with your actual username
 ## Only do this the first time
-##keyring::key_set(service = db.name,
-##                 username = username) 
+keyring::key_set(service = db.name,
+                 username = username) 
 
 ## Connect to database
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
