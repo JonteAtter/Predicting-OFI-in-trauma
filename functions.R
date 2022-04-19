@@ -14,7 +14,6 @@ devtools::install_github("martingerdin/rofi")
 library(rofi)
 library(stringr)
 library(mikropml)
-## library(naniar)
 library(dplyr)
 library(labelled)
 library(tableone)
@@ -24,7 +23,7 @@ library(dotenv)
 library(keyring)
 
 ## Setup reading from the database
-dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem"))
+dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem", "kvalgranskning2014.2017"))
 db.name <- "opportunities_for_improvement"
 scrambled <- FALSE ## Set to FALSE if you're working with the real data
 if (scrambled) dataset.names <- setNames(paste0(dataset.names, "_scrambled"), nm = dataset.names)
@@ -36,6 +35,7 @@ username <- "jonatana" ## Replace scrambled with your actual username
 keyring::key_set(service = db.name,
                  username = username) 
 
+test <- c("abc")
 ## Connect to database
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
                        user = username,
@@ -261,6 +261,9 @@ tp <- 488
 lim.data <- pred.data[pred.data$tp == tp, ]
 fp <- min(lim.data$fp)
 
+
+#### To exclude documentation
+table(dataset$p)
 
 results <- run_ml(dataset = dataset,
                   method = 'glmnet',

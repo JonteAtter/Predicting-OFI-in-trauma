@@ -2,8 +2,9 @@
 # Clean audit filters
 # Clean predictor variables
 # Imputation
+# Preprocess data
 
-clean_Audit_filters <- function(combined.datasets) {
+clean_audit_filters <- function(combined.datasets) {
   
   #################################
   # Clean audit-filters to Yes/No #
@@ -12,12 +13,12 @@ clean_Audit_filters <- function(combined.datasets) {
   audit.filter <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
                     "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
                     "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
-                    "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_avslutad")
+                    "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_avslutad","VK_annat")
   
   audit.filter2 <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
                      "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
                      "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
-                     "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE")
+                     "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_annat")
   
   combined.datasets[,audit.filter][combined.datasets[,audit.filter] == "Ja"| 
                                      combined.datasets[,audit.filter] == "ja"] <- "Yes"
@@ -44,6 +45,12 @@ clean_Audit_filters <- function(combined.datasets) {
 #  Convert NA:s in VK rows to No if VK_avslutad = Yes (To be able to calc false neg)
 #########
   
+#  for (i in 1:nrow(combined.datasets)) {
+#    if (is.na(combined.datasets[i,"VK_avslutad"]) == FALSE && combined.datasets[i,"VK_avslutad"] == "Yes" && is.na(combined.datasets[i,audit.filter2]) == TRUE ) {
+#      combined.datasets[i,audit.filter2] <- "No"
+#    }
+#  }
+  
   combined.datasets[, audit.filter2] <- lapply(combined.datasets[, audit.filter2], function(column) {
     column[is.na(column) & combined.datasets$VK_avslutad == "Yes"] <- "No"
     return (column)
@@ -57,14 +64,21 @@ clean_Audit_filters <- function(combined.datasets) {
 ####################
 # Change values that are suposed to be NA
 # Change Predictors to the right one
+# Remove cases without OFI
 
-Clean_predictor <- function(data.prob) {
+clean_predictor <- function(dataset) {
   
   ## Create vectors for variables, separated by type and use.
   ## Make sure "na.values.list" is up to date if you change variables
   
+  ## Create new variable for intubation status: 1: Intubated in hospital: 2: Not intubated: 3 Intubated prehospital
+  dataset$intub <- with(dataset, ifelse(`pre_intubated` == 1 & is.na(dataset$pre_intubated) == FALSE, 3, `ed_intubated`))
+  
+  ## Create vectors for variable, separated by type and use - Make sure "na.values.list" is up to date
+  
   ## continuous variables
   cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value") 
+  
   ## categorical variables
   cat.var <- c("ofi", "res_survival", "intub", "host_care_level", "Gender")
   
@@ -72,27 +86,11 @@ Clean_predictor <- function(data.prob) {
   time.id.var <- c("arrival", "id")                                              
   variables <- c(cont.var, cat.var, time.id.var)
   model.variables <- c(cont.var, cat.var)
-
-  ## Convert categorical values to factors
-  #for (variable.name in cat.var) {
-  #  data.prob[, variable.name] <- as.factor(data.prob[, variable.name])
-  #}
+  dpc <- dataset[variables]
   
-  ## Convert continuous variables to numeric
-#  for (variable.name in cont.var) {
-#    data.prob[, variable.name] <- as.numeric(data.prob[, variable.name])
-#  }
-  
-  
-#####
-## CHANGE OTHER VARIABLES???? INTEGRATE PREHOSP VALUES THE SAME WAY AS HUSSEIN BEFORE IMPUTATION?
-####  
-## Create new variable for intubation status: 1: Intubated in hospital: 2: Not intubated: 3 Intubated prehospital
-  data.prob$intub <- with(data.prob, ifelse(`pre_intubated` == 1 & is.na(data.prob$pre_intubated) == FALSE, 3, `ed_intubated`))
-  
-## A list that governs values in what variables that should be converted to NA
+  ## A list that governs values in what variables that should be converted to NA
   na.values.list <- list(ed_gcs_sum = c(99, 999),
-                         ed_rr_value_ = c(99),
+                         ed_rr_value_ = c(99), ## The manual states that RR should not be over 70
                          ISS = c(0)) 
   
   #' Convert values in variable to NA
@@ -112,29 +110,51 @@ Clean_predictor <- function(data.prob) {
   }
   
   ## Convert
-  data.prob[variables][] <- lapply(names(data.prob[variables]), function(variable.name) {
-    data <- data.prob[variables][, variable.name]
+  dpc[] <- lapply(names(dpc), function(variable.name) {
+    data <- dpc[, variable.name]
     na.values <- na.values.list[[variable.name]]
     if (!is.null(na.values))
       data <- convert_to_na(data, na.values)
     return (data)
   })
-  
-  return(data.prob)
+ 
+return(dpc)   
 }
-
+  
 ##############
 # Imputation # - DOES NOT WORK, CANT FIND NEW DATA
 ##############
+  
 
-imputation <- function(data) {
+imputation <- function(dataset) {
+  
+  ## continuous variables
+  cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value") 
+  ## categorical variables
+  cat.var <- c("ofi", "res_survival", "intub", "host_care_level", "Gender")
+  
+  ## Variables used for sorting
+  time.id.var <- c("arrival", "id")                                              
+  variables <- c(cont.var, cat.var, time.id.var)
+  model.variables <- c(cont.var, cat.var)
+  
   # Create new dataframe - missing.indicator.variables - Containing true/false if a value is imputet
-  missing.indicator.variables <- as.data.frame(lapply(data, function(data) is.na(data)))
+  missing.indicator.variables <- as.data.frame(lapply(dataset, function(data) is.na(data)))
   missing.indicator.variables[, c("ofi", "Ankomst_te", "id")] <- NULL
   names(missing.indicator.variables) <- paste0("missing_", names(missing.indicator.variables))
   
+  ## Convert categorical values to factors
+  for (variable.name in cat.var) {
+    dataset[, variable.name] <- as.factor(dataset[, variable.name])
+  }
+  
+  ## Convert continuous variables to numeric
+  for (variable.name in cont.var) {
+    dataset[, variable.name] <- as.numeric(dataset[, variable.name])
+  }
+  
   ## Imputation 
-  data.imputed <- as.data.frame(lapply(data, function(data) {
+  dataset.imputed <- as.data.frame(lapply(dataset, function(data) {
     new.data <- data
     if (is.factor(data))
       new.data <- as.character(data) ## change to character to be able to identify/separate?
@@ -146,5 +166,19 @@ imputation <- function(data) {
       new.data <- as.factor(new.data)
     return (new.data)
   }))
-  return(new.data)
+  
+  ## Create new dataframe - dataset - combining imputed data and
+  ## corresponding variables if the data is imputed true/false.
+  dataset <- cbind(dataset.imputed[model.variables], missing.indicator.variables)
+  
+return(dataset)  
+}
+
+#####################
+## Preprocess data ##
+#####################
+
+preprocess_data <- function(data) {
+  preprocessed.data <- mikropml::preprocess_data(data, outcome_colname = "ofi", to_numeric = FALSE)
+  return (preprocessed.data$dat_transformed)
 }
