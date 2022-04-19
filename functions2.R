@@ -140,7 +140,7 @@ imputation <- function(dataset) {
   
   # Create new dataframe - missing.indicator.variables - Containing true/false if a value is imputet
   missing.indicator.variables <- as.data.frame(lapply(dataset, function(data) is.na(data)))
-  missing.indicator.variables[, c("ofi", "Ankomst_te", "id")] <- NULL
+  missing.indicator.variables[, c("ofi", "arrival", "id")] <- NULL
   names(missing.indicator.variables) <- paste0("missing_", names(missing.indicator.variables))
   
   ## Convert categorical values to factors
