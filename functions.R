@@ -7,11 +7,13 @@ install.packages("devtools")
 ## install.packages("naniar")
 devtools::install_github("SchlossLab/mikropml")
 install.packages('dplyr')
+devtools::install_github("martingerdin/rofi")
 
 ## Load packages
+
+library(rofi)
 library(stringr)
 library(mikropml)
-## library(naniar)
 library(dplyr)
 library(labelled)
 library(tableone)
@@ -21,9 +23,9 @@ library(dotenv)
 library(keyring)
 
 ## Setup reading from the database
-dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem"))
+dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem", "kvalgranskning2014.2017"))
 db.name <- "opportunities_for_improvement"
-scrambled <- TRUE ## Set to FALSE if you're working with the real data
+scrambled <- FALSE ## Set to FALSE if you're working with the real data
 if (scrambled) dataset.names <- setNames(paste0(dataset.names, "_scrambled"), nm = dataset.names)
 if (scrambled) db.name <- paste0(db.name, "_scrambled")
 
@@ -33,6 +35,7 @@ username <- "jonatana" ## Replace scrambled with your actual username
 keyring::key_set(service = db.name,
                  username = username) 
 
+test <- c("abc")
 ## Connect to database
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
                        user = username,
@@ -61,31 +64,10 @@ if (!scrambled) {
 combined.datasets <- merge(fmp, problem, by = "id", all.x = TRUE)
 combined.datasets <- merge(combined.datasets, swetrau, by = "id", all.x = TRUE)
 
-## Column with yes/no and 1/0 for problems
-levels.Problemomrade_.FMP <- sort(unique(combined.datasets$Problemomrade_.FMP))
-original.levels.Problemomrade_.FMP <- sort(c(NA, "OK",
-                                             "Triage på akutmottagningen",
-                                             "Resurs", "Lång tid till op",
-                                             "Lång tid till DT", "Vårdnivå",
-                                             "Traumakriterier/styrning",
-                                             "Missad skada", "Kommunikation",
-                                             "Neurokirurg",
-                                             "Föredömligt handlagd",
-                                             "Logistik/teknik", "Ok",
-                                             "Dokumentation", "Dokumetation",
-                                             "bristande rutin", "ok",
-                                             "Handläggning", "kompetens brist",
-                                             "Tertiär survey"))
-if (!identical(levels.Problemomrade_.FMP, original.levels.Problemomrade_.FMP))
-    stop ("Levels in Problemomrade._FMP have changed.")
-combined.datasets$probYN <- with(combined.datasets, ifelse(
-  `Problemomrade_.FMP` == "ok" |
-  `Problemomrade_.FMP` == "OK" |
-  `Problemomrade_.FMP` == "Ok" |
-  `Problemomrade_.FMP` == "Föredömligt handlagd",
-  "Yes", "No"))
-combined.datasets$prob10 <- with(combined.datasets, ifelse(`probYN` == "Yes", 1, 0))
+## Create OFI collumn
 
+combined.datasets[,"Fr1-14"] <- combined.datasets$Fr1.14
+combined.datasets$ofi <- create_ofi(combined.datasets)
 
 ####
 # Converting preventable deaths to OFI
@@ -165,10 +147,12 @@ combined.datasets$quality.process.done <- with(combined.datasets,
 ## No: The consensus was that there were no opportunities for
 ## improvement, or the nurses in the initial review did not send the
 ## case for review because everything was okay.
-combined.datasets$ofi <- with(combined.datasets,
-                              ifelse(quality.process.done == "Yes" & probYN == "Yes", "Yes",
-                              ifelse(quality.process.done == "Yes" & probYN == "No", "No", NA)))
-combined.datasets$ofi[with(combined.datasets, quality.process.done == "Yes" & is.na(probYN))] <- "No"
+
+#### Old code
+##combined.datasets$ofi <- with(combined.datasets,
+#                              ifelse(quality.process.done == "Yes" & probYN == "Yes", "Yes",
+#                              ifelse(quality.process.done == "Yes" & probYN == "No", "No", NA)))
+#combined.datasets$ofi[with(combined.datasets, quality.process.done == "Yes" & is.na(probYN))] <- "No"
 
 ## Separate and store cases without known outcome
 missing.outcome <- is.na(combined.datasets$ofi)
@@ -260,6 +244,27 @@ tv <- c(1:round(nrow(dpc.imputed)*0.8, digits = 0))
 ## corresponding variables if the data is imputed true/false.
 dataset <- cbind(dpc.imputed[model.variables], missing.indicator.variables)
 
+## Preliminary results
+
+## Train model 
+nglm <- glm(ofi ~ ., data = dataset, family = "binomial")
+## Evaluate performance
+pred <- ROCR::prediction(predict(nglm), dataset$ofi)
+auc <- unlist(ROCR::performance(pred, "auc")@y.values)
+pred.data <- data.frame(fn = unlist(pred@fn), tn = unlist(pred@tn), fp = unlist(pred@fp), tp = unlist(pred@tp), cutoff = unlist(pred@cutoffs))
+pred.data$precision <- with(pred.data, tp/(tp + fp))
+pred.data$recall <- with(pred.data, tp/(tp + fn))
+pred.data$f1 <- with(pred.data, 2*(precision * recall)/(precision + recall))
+## Assuming that we accept a reduction in "true positives" with 100
+## cases, i.e. from 588 to 488.
+tp <- 488
+lim.data <- pred.data[pred.data$tp == tp, ]
+fp <- min(lim.data$fp)
+
+
+#### To exclude documentation
+table(dataset$p)
+
 results <- run_ml(dataset = dataset,
                   method = 'glmnet',
                   outcome_colname = "ofi",
@@ -276,10 +281,34 @@ results.forest <- run_ml(dataset = dataset,
                   training_frac = 0.8,
                   seed = 2019)
 
+results.decision <- run_ml(dataset = dataset,
+                         method = 'rpart2',
+                         outcome_colname = "ofi",
+                         kfold = 5,
+                         cv_times = 5,
+                         training_frac = 0.8,
+                         seed = 2019)
+
+results.vector.machine <- run_ml(dataset = dataset,
+                         method = 'svmRadial',
+                         outcome_colname = "ofi",
+                         kfold = 5,
+                         cv_times = 5,
+                         training_frac = 0.8,
+                         seed = 2019)
+
+results.boost <- run_ml(dataset = dataset,
+                         method = 'xgbTree',
+                         outcome_colname = "ofi",
+                         kfold = 5,
+                         cv_times = 5,
+                         training_frac = 0.8,
+                         seed = 2019)
+
 performance.LR <- as.list(results$performance)
 performance.RF <- as.list(results.forest$performance)
 
-performance <- do.call(rbind, Map(data.frame, "Logistic regression"=performance.LR, "Random forest"=performance.RF))
+performance <- do.call(rbind, Map(data.frame, "Logistic regression"=performance.LR, "Random forest"=performance.RF, "Random forest"=performance.RF, "Random forest"=performance.RF))
 
 ##----------------------Table of Characteristics---------------------
 
