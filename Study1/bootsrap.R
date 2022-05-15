@@ -131,8 +131,13 @@ Bootstrap <- function(data, index) {
   #                     lr.model = results.lr,
    #                    rf.model = results.forest,
     #                   boost.model = results.boost)
-# }
-  
+                                        # }
+
+  if (!dir.exists("out"))
+      dir.create("out")
+  filename <- paste0("out/boot.result.", gsub(".", "", as.numeric(Sys.time()), fixed = TRUE), ".Rds")
+  saveRDS(boot.result, filname)
+  message("Bootstrap analysis completed and results saved")
   return(boot.result)
 }
 
