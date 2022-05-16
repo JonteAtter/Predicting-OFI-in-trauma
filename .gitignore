@@ -9,3 +9,5 @@ dynamic-identification-ofi.Rproj
 .Rhistory
 /data/
 /Study1/results/
+/Study1/out/
+**/*.Rds
