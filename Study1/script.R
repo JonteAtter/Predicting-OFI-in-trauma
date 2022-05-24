@@ -92,7 +92,6 @@ tv <- c(1:round(nrow(clean.dataset)*0.8, digits = 0))
 
 
 ## Result calculations ##
-
 boot.results <- boot(data = combined.datasets, statistic = Bootstrap, R = 6)
 
 # test for result extraction. 
