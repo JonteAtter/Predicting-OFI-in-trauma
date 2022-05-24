@@ -85,34 +85,6 @@ clean.dataset <- clean_predictor(dataset.clean.af)
 ## Imputation
 imputed.dataset <- imputation(clean.dataset)
 
-############## 
-## Codes for sample size
-##############
-
-## Load the package referenced by @riley2020
-library(pmsampsize)
-# Binary outcome
-type <- "b"
-## Observations in database
-n.swetrau <- nrow(swetrau)
-n.2017.2021 <- nrow(clean.dataset)
-## Calculate sum of OFI - NEED to change this?
-ofi <- sum(combined.datasets$ofi == "Yes")
-## Prevalence
-prevalence <- ofi/n.2017.2021
-## Unknown, but using the recommendations in @riley2020 we set
-## Nagelkerke R2 to 0.15 and assume an event fraction of 0.01
-rsquared <- 0.11
-## 30 candidate predictors
-parameters <- 15
-## Sample size
-#sample.size <- pmsampsize(type = type,
-#                         rsquared = rsquared,
-#                        parameters = parameters,
-#                       prevalence = prevalence)
-## Utility functions
-fmt_p <- function(x, n) sprintf("%.0f", round(x*100/n))
-
 ## Sort data according to time and create 80% training vector for training set
 ## selection
 clean.dataset <-clean.dataset[order(clean.dataset$arrival), ]
