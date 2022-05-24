@@ -1,25 +1,14 @@
 
 ## Load packages
-library(gmish)
-library(rofi)
-library(stringr)
-library(mikropml)
-library(dplyr)
-library(labelled)
-library(DBI)
-library(RMariaDB)
-library(dotenv)
-library(keyring)
-dotenv::load_dot_env()
-library(remotes)
-library(boot)
-library(DiagrammeR)
-library(tableone)
-library(table1)
-library(dplyr)
-library(kableExtra)
-library(lattice)
-library(caret)
+packages <- c("gmish", "rofi", "stringr", "mikropml", "dplyr", "labelled", "DBI", "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret")
+for (package in packages) {
+    if (!require(package, quietly = TRUE)) {
+        install.packages(package)
+    }
+    libraray(package)
+}
+
+dotenv::load_dot_env
 
 ## Source functions
 source("../functions2.R")
