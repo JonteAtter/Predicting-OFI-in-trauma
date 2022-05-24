@@ -92,8 +92,12 @@ tv <- c(1:round(nrow(clean.dataset)*0.8, digits = 0))
 
 
 ## Result calculations ##
+if (file.exists("out/boot.results.Rds"))
+    file.remove("out/boot.results.Rds")
 boot.results <- boot(data = combined.datasets, statistic = Bootstrap, R = 6)
-
+saveRDS("out/boot.results.Rds")
+if (file.exists("out/boot.results.Rds"))
+    message("All bootstraps completed and results saved to disk")
 # test for result extraction. 
 #accuricy.ci <- boot.ci(boot.results, type = "norm", index = 1)
 #ci.auc <- boot.ci(boot.results, type = "norm", index = 2)
