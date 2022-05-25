@@ -1,3 +1,5 @@
+#!/usr/bin/env Rscript
+
 ## Load packages
 packages <- c("Gmisc", "stringr", "mikropml", "dplyr", "labelled", "DBI", "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret")
 for (package in packages) library(package, character.only = TRUE)
