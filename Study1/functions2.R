@@ -323,7 +323,7 @@ bootstrap <- function(data, index) {
     if (!dir.exists("out"))
         dir.create("out")
     filename <- paste0("out/boot.result.", gsub(".", "", as.numeric(Sys.time()), fixed = TRUE), ".Rds")
-    saveRDS(boot.result, filname)
+    saveRDS(boot.result, filename)
     message("Bootstrap analysis completed and results saved")
     return(boot.result)
 }
