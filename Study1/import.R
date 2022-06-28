@@ -1,17 +1,24 @@
 ######### You need to have "id" already done in 
 ######### combined.datasets and kvalgranskning2014.2017.
 
+library(rofi)
+library(janitor)
+datasets <- rofi::import_data()
+combined.datasets <- rofi::merge_data(datasets)
 data1 <- combined.datasets
+new.id <- paste(as.Date(substr(data1$id, 1, 19)), substring(data1$id, 21))
+data1$id <- new.id
+kvalgranskning2014.2017 <- datasets$kvalgranskning2014.2017
+kvalgranskning2014.2017$arrival <- as.Date(kvalgranskning2014.2017$DateTime_ArrivalAtHospital)
+kvalgranskning2014.2017$id <- with(kvalgranskning2014.2017, paste(arrival, pat_personnummer, pat_TempPersonnummer))
+kvalgranskning2014.2017$origin <- "kvalgranskning2014.2017"
 data2 <- kvalgranskning2014.2017
 
 ### Paket som möjliggör visualisering och jämförelse av exv class för olika kolumner/dataset
-install.packages("janitor")
-library("janitor")
 jmf <- compare_df_cols(combined.datasets, kvalgranskning2014.2017)
 k <- subset(jmf, is.na(jmf$kvalgranskning2014.2017)== FALSE & is.na(jmf$combined.datasets)== FALSE & jmf$combined.datasets != jmf$data2)
 
 ### Make sure collumns are same class ###
-
 data1$dt_alarm_hosp <- as.numeric(data1$dt_alarm_hosp)
 data1$dt_alarm_scene <- as.numeric(data1$dt_alarm_scene)
 data1$dt_ed_emerg_proc <- as.numeric(data1$dt_ed_emerg_proc)
@@ -30,8 +37,9 @@ data1$DateTime_ArrivalAtScene <- as.POSIXct(data1$DateTime_ArrivalAtScene)
 #### Merge with all.x == TRUE and all.y=TRUE to not loose patients,
 #### THIS is wrong, patients are doubled. check patient wir "Triage på akm" under problemområden.
 
-data3 <- merge(setDT(data1), setDT(data2), all.x = TRUE, all.y = TRUE,
-               by = c("id"))
+## data3 <- merge(setDT(data1), setDT(data2), all.x = TRUE, all.y = TRUE,
+##                by = c("id"))
+data3 <- merge(data1, data2, all.x = TRUE, by = "id")
 
 ### IF k have 0 observations below alla collumns have same classes?
 jmf <- compare_df_cols(data1, data2)
