@@ -12,3 +12,4 @@ dynamic-identification-ofi.Rproj
 /Study1/out/
 **/*.Rds
 *.out
+data/
