@@ -17,10 +17,10 @@ swe$ISS <- as.numeric(swe$ISS)
 swe$NISS <- as.numeric(swe$NISS)
 swe$pt_age_yrs <- as.numeric(swe$pt_age_yrs)
 
-swe$DateTime_ArrivalAtHospital <- as.POSIXct(swe$DateTime_ArrivalAtHospital)
-swe$DateTime_LeaveScene  <- as.POSIXct(swe$DateTime_LeaveScene )
-swe$DateTime_of_Alarm  <- as.POSIXct(swe$DateTime_of_Alarm)
-swe$DateTime_Of_Trauma <- as.POSIXct(swe$DateTime_Of_Trauma)
+swe$DateTime_ArrivalAtHospital <- as.POSIXct(strptime(swe$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
+swe$DateTime_LeaveScene  <- as.POSIXct(strptime(swe$DateTime_LeaveScene, format = "%Y-%m-%d %H:%M"))
+swe$DateTime_of_Alarm  <- as.POSIXct(strptime(swe$DateTime_of_Alarm, format = "%Y-%m-%d %H:%M"))
+swe$DateTime_Of_Trauma <- as.POSIXct(strptime(swe$DateTime_Of_Trauma, format = "%Y-%m-%d %H:%M"))
 swe$DOB <- as.POSIXct(swe$DOB)
 swe$DateTime_ArrivalAtScene <- as.POSIXct(swe$DateTime_ArrivalAtScene)
 
@@ -30,6 +30,7 @@ swe$DateTime_ArrivalAtScene <- as.POSIXct(swe$DateTime_ArrivalAtScene)
 kval[285,"tra_id"] <- 24432
 
 ### In swetraukval there is 14 "extra" patients 
+
 swetraukval <- merge(setDT(swe), setDT(kval), all.x = TRUE, all.y = TRUE,
                      by = c("tra_id"))
 ## To find trau_id:s that dont match in kval and swe.
@@ -56,13 +57,14 @@ new.pat.id <- new.pat$pat_id.y
 
 k5 <- k4[,c("tra_id","pat_id","DOB","DateTime_ArrivalAtHospital")] ## to manually screen the 9
 
+
 swetraukval2 <- merge(setDT(k5), setDT(kval[,c("tra_id","pat_id","DOB","DateTime_ArrivalAtHospital")]), all.x = TRUE,
                      by = c("pat_id"))
 
 ### Manuell screening of swetrau2 gives: same pat_id, DOB and same DateTime_ArrivalAtHospital (patient with pat_it 33857 differs 1 min)
 ### suggesting wrong trau_id.
 ## fix wrong time
-swetraukval2$DateTime_ArrivalAtHospital.x <- swetraukval2[swetraukval2$pat_id =='33857', "DateTime_ArrivalAtHospital.y"]
+#swetraukval2$DateTime_ArrivalAtHospital.x <- swetraukval2[swetraukval2$pat_id =='33857', "DateTime_ArrivalAtHospital.y"]
 #fix wrong tra_id
 
 ## setting up vectors for identification and replacement.
@@ -78,14 +80,58 @@ for (x in 1:length(tra_id.g.kval)){
 # New merge, now with 5 unknow patients if all.y == TRUE
 # I checked for pat_personnummer and pat_id, they dont exist in swetrau = New patients.
 
+
+###### I WANT TO HAVE all.y = TRUE to add the last 5 patients, but it creates problems with creaton of Arrival
+jmf <- compare_df_cols(swe, kval2)
+k <- subset(jmf, is.na(jmf$kval2)== FALSE & is.na(jmf$swe)== FALSE & jmf$swe != jmf$kval)
+
 swetraukval3 <- merge(setDT(swe), setDT(kval2), all.x = TRUE, all.y = TRUE,
                      by = c("tra_id"))
 
-#### STILL NEED TO CHECK WHERE pat_id:s/personnummer Dont match, se two patients:
-#View(swetraukval3[swetraukval3$pat_id.x != swetraukval3$pat_id.y])
+#### STILL NEED TO CHECK WHERE pat_id:s x and y/personnummer Dont match despite having same tra_id, se two patients:
+# swetraukval3[swetraukval3$pat_id.x != swetraukval3$pat_id.y]. i Think patients in kvalgransk with pat_id: 33973 and 33922 whould have tra_id 36078 and 
+kval3 <- kval2
 
-swekval <- as.data.frame(swetraukval3)
-##################### Clean new file
+kval3[is.element(kval3$pat_id,c(33973)),"tra_id"] <- c(36078)
+kval3[is.element(kval3$pat_id,c(33922)),"tra_id"] <- c(36024)
+
+swetraukval4 <- merge(setDT(swe), setDT(kval3), all.x = TRUE, all.y = TRUE,
+                      by = c("tra_id"))
+swetraukval4 <- as.data.frame(swetraukval4)
+
+###########
+swekval <- as.data.frame(swetraukval4)
+
+
+###########
+## Copied format from ROFI to add ID and match problem/fmp
+###########
+## Format datetime variable
+#swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d"))
+#fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d"))
+#problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d"))
+
+swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d %H:%M"))
+fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
+problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
+
+## Create id variable by pasting arrival time and hashed identify
+swekval$id <- with(swekval, paste(arrival, PersonIdentity, TempIdentity))
+fmp$id <- with(fmp, paste(arrival, Personnummer, Reservnummer))
+problem$id <- with(problem, paste(arrival, Personnummer, Reservnummer))
+
+## Combine datasets
+## i think you can merge with ("id","Ankomst_te","arrival","Personnummer","Reservnummer")? If you merge with just ID, the created .x and .y collumns match.
+combined.datasets <- merge(fmp, problem, by = c("id","Ankomst_te","arrival","Personnummer","Reservnummer"), all.x = TRUE, all.y = TRUE)
+
+##########
+## Bigger problem here, with all.y = TRUE you get 23k+ patients?
+#######
+combined.datasets <- merge(swekval, combined.datasets , by = "id", all.x = TRUE, all.y = TRUE)
+
+k <- combined.datasets[!is.na(combined.datasets$tra_id) == FALSE,]
+
+##################### Clean new file --- not done for new combined.datasets
 #####################
 
 #### Get collumns that overlap, .x = from swe and .y is from kval
@@ -107,33 +153,16 @@ col.names.y <- c("pat_id.y","DOB.y","pt_age_yrs.y","Gender.y"
 ######
 for (x in 1:length(col.names.y)){
   swekval[,col.names.x[x]] <- with(swekval, ifelse(is.na(swekval[,col.names.x[x]]) == TRUE & is.na(swekval[,col.names.y[x]]) == FALSE,
-                                               swekval[,col.names.y[x]], swekval[,col.names.x[x]]))
+                                                   swekval[,col.names.y[x]], swekval[,col.names.x[x]]))
 }
 
 ### Removes excess collumnes (.y) since .y is inserted into .x wherever .x was empty.
 swekval[,col.names.y] <- NULL
 
-###########
-## Copied format from ROFI to add ID and match problem/fmp
-###########
-## Format datetime variable
-swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d %H:%M"))
-fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
-problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
+swekval2 <- swekval
 
-## Create id variable by pasting arrival time and hashed identify
-swekval$id <- with(swekval, paste(arrival, PersonIdentity, TempIdentity))
-fmp$id <- with(fmp, paste(arrival, Personnummer, Reservnummer))
-problem$id <- with(problem, paste(arrival, Personnummer, Reservnummer))
 
-## Combine datasets
-combined.datasets <- merge(fmp, problem, by = "id", all.x = TRUE, all.y = TRUE)
-##########
-## Bigger problem here, with all.y = TRUE you get 23k+ patients?
-#######
-combined.datasets <- merge(swekval, combined.datasets , by = "id", all.x = TRUE, all.y = TRUE)
-
-swekval <- combined.datasets
+#swekval <- combined.datasets
 ######################
 ######## Add after addition of problem and fmp file!
 ######################
