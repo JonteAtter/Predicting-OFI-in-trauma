@@ -81,7 +81,7 @@ for (x in 1:length(tra_id.g.kval)){
 # I checked for pat_personnummer and pat_id, they dont exist in swetrau = New patients.
 
 
-###### I WANT TO HAVE all.y = TRUE to add the last 5 patients, but it creates problems with creaton of Arrival
+###### I WANT TO HAVE all.y = TRUE to add the last 5 patients
 jmf <- compare_df_cols(swe, kval2)
 k <- subset(jmf, is.na(jmf$kval2)== FALSE & is.na(jmf$swe)== FALSE & jmf$swe != jmf$kval)
 
@@ -89,7 +89,7 @@ swetraukval3 <- merge(setDT(swe), setDT(kval2), all.x = TRUE, all.y = TRUE,
                      by = c("tra_id"))
 
 #### STILL NEED TO CHECK WHERE pat_id:s x and y/personnummer Dont match despite having same tra_id, se two patients:
-# swetraukval3[swetraukval3$pat_id.x != swetraukval3$pat_id.y]. i Think patients in kvalgransk with pat_id: 33973 and 33922 whould have tra_id 36078 and 
+# swetraukval3[swetraukval3$pat_id.x != swetraukval3$pat_id.y]. i Think patients in kvalgransk with pat_id: 33973 and 33922 should have tra_id 36078 and 
 kval3 <- kval2
 
 kval3[is.element(kval3$pat_id,c(33973)),"tra_id"] <- c(36078)
@@ -97,70 +97,96 @@ kval3[is.element(kval3$pat_id,c(33922)),"tra_id"] <- c(36024)
 
 swetraukval4 <- merge(setDT(swe), setDT(kval3), all.x = TRUE, all.y = TRUE,
                       by = c("tra_id"))
-swetraukval4 <- as.data.frame(swetraukval4)
+
+#### Need to clean swetraukval
+
+##################### Clean new file
+#####################
+
+#### Get collumns that overlap, .x = from swe and .y is from kval
+col.names.x <- names(select(swetraukval4,ends_with(".x")))
+### Needed matching orders for .x and .y so i manually did it. 
+
+col.names.y <- c("pat_id.y","DOB.y","pt_age_yrs.y","Gender.y","pt_Gender.y","pre_card_arrest.y",
+"ed_gcs_sum.y","hosp_dischg_dest.y","res_gos_dischg.y","ISS.y","NISS.y","DateTime_Of_Trauma.y",        
+"DateTime_of_Alarm.y","DateTime_ArrivalAtScene.y","DateTime_LeaveScene.y","DateTime_ArrivalAtHospital.y",
+"DateTime_FirstTraumaDT.y","DateTime_StartofTreatment.y","dt_alarm_hosp.y",
+"pre_intubated.y","pre_intub_type.y","ed_intubated.y","ed_intub_type.y",
+"ed_emerg_proc.y","ed_emerg_proc_other.y","host_care_level.y",
+"dt_alarm_scene.y","dt_ed_first_ct.y","dt_ed_emerg_proc.y")
+
+sk <- as.data.frame(swetraukval4)
+
+######
+# Loop keeps values from .x (swe), 
+# but if they are empty insert values from .y (kval) insted.
+# Manually checked, extremely rare for both .x and .y to exist and when it does, .y is usually an obvious error.
+######
+for (x in 1:length(col.names.x)){
+  sk[is.na(sk[,col.names.x[x]]) == TRUE, col.names.x[x]] <- 
+    sk[is.na(sk[,col.names.x[x]]) == TRUE,col.names.y[x]]
+}
+
+### Removes excess collumnes (.y) since .y is inserted into .x wherever .x was empty.
+sk[,col.names.y] <- NULL
+
+########### combine personnummer collumns
+sk[is.na(sk[,"PersonIdentity"]) == TRUE, "PersonIdentity"] <- 
+  sk[is.na(sk[,"PersonIdentity"]) == TRUE,"pat_personnummer"]
+
+sk[is.na(sk[,"TempIdentity"]) == TRUE, "TempIdentity"] <- 
+  sk[is.na(sk[,"TempIdentity"]) == TRUE,"pat_TempPersonnummer"]
 
 ###########
-swekval <- as.data.frame(swetraukval4)
-
+swekval <- as.data.frame(sk)
 
 ###########
 ## Copied format from ROFI to add ID and match problem/fmp
 ###########
 ## Format datetime variable
-#swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d"))
-#fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d"))
-#problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d"))
+swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d"))
+fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d"))
+problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d"))
 
-swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d %H:%M"))
-fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
-problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
+#swekval$arrival <- as.POSIXct(strptime(swekval$DateTime_ArrivalAtHospital.x, format = "%Y-%m-%d %H:%M"))
+#fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
+#problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
 
 ## Create id variable by pasting arrival time and hashed identify
-swekval$id <- with(swekval, paste(arrival, PersonIdentity, TempIdentity))
-fmp$id <- with(fmp, paste(arrival, Personnummer, Reservnummer))
-problem$id <- with(problem, paste(arrival, Personnummer, Reservnummer))
+swekval$id <- with(swekval, paste(arrival, PersonIdentity))
+fmp$id <- with(fmp, paste(arrival, Personnummer))
+problem$id <- with(problem, paste(arrival, Personnummer))
+#### To the use od "id" even when you only use date + personnummer still results in +700 defect "extra" patients that should not exist.
+#### How many should match? - atleast 11859 - all patients from fmp/problem exist in swe! Se below.
+
+ids <- unique(fmp$Personnummer)
+ids2 <- unique(problem$Personnummer)
+
+match <- swe[is.element(swe$PersonIdentity,ids),]
+match2 <- swe[is.element(swe$PersonIdentity,ids2),]
 
 ## Combine datasets
-## i think you can merge with ("id","Ankomst_te","arrival","Personnummer","Reservnummer")? If you merge with just ID, the created .x and .y collumns match.
+## i think you can merge with ("id","Ankomst_te","arrival","Personnummer","Reservnummer")? If you merge with just ID, the created .x and .y columns match.
 combined.datasets <- merge(fmp, problem, by = c("id","Ankomst_te","arrival","Personnummer","Reservnummer"), all.x = TRUE, all.y = TRUE)
 
+### Merge only with personnummer when possible when combining with swetrau and kval? 
+## How many Pats exist more than once? - 306
+double <- setDT(swekval)[, .N, by=PersonIdentity][N > 1L]$PersonIdentity
+
+combined.datasets1 <- merge(swekval[!is.element(swekval$PersonIdentity,double),], combined.datasets[!is.element(combined.datasets$Personnummer,double),]
+                            , by.x = "PersonIdentity", by.y = "Personnummer", all.x = TRUE, all.y = TRUE)
+
+combined.datasets2 <- merge(swekval[is.element(swekval$PersonIdentity,double),], combined.datasets[is.element(combined.datasets$Personnummer,double),]
+                            , by = "id", all.x = TRUE, all.y = TRUE)
+
+### THe above still results in 12724 patients in total = to many.
 ##########
-## Bigger problem here, with all.y = TRUE you get 23k+ patients?
+## Bigger problem here, with all.y = TRUE you get 12730 patients, 700+ dont match?
 #######
 combined.datasets <- merge(swekval, combined.datasets , by = "id", all.x = TRUE, all.y = TRUE)
 
-k <- combined.datasets[!is.na(combined.datasets$tra_id) == FALSE,]
 
-##################### Clean new file --- not done for new combined.datasets
-#####################
-
-#### Get collumns that overlap, .x = from swe and .y is from kval
-col.names.x <- names(select(swekval,ends_with(".x")))
-### Needed matching orders for .x and .y so i manually did it. 
-col.names.y <- c("pat_id.y","DOB.y","pt_age_yrs.y","Gender.y"                    
-                 ,"pt_Gender.y","pre_card_arrest.y","ed_gcs_sum.y","hosp_dischg_dest.y"          
-                 ,"res_gos_dischg.y","ISS.y","NISS.y","DateTime_Of_Trauma.y"        
-                 ,"DateTime_of_Alarm.y","DateTime_ArrivalAtScene.y"   
-                 ,"DateTime_LeaveScene.y","DateTime_ArrivalAtHospital.y"
-                 ,"DateTime_FirstTraumaDT.y","DateTime_StartofTreatment.y" 
-                 ,"dt_alarm_hosp.y","pre_intubated.y","pre_intub_type.y","ed_intubated.y"              
-                 ,"ed_intub_type.y","ed_emerg_proc.y","ed_emerg_proc_other.y","host_care_level.y"           
-                 ,"dt_alarm_scene.y","dt_ed_first_ct.y","dt_ed_emerg_proc.y")
-
-######
-# Loop keeps values from .x (swe), 
-# but if they are empty insert values from .y (kval) insted.
-######
-for (x in 1:length(col.names.y)){
-  swekval[,col.names.x[x]] <- with(swekval, ifelse(is.na(swekval[,col.names.x[x]]) == TRUE & is.na(swekval[,col.names.y[x]]) == FALSE,
-                                                   swekval[,col.names.y[x]], swekval[,col.names.x[x]]))
-}
-
-### Removes excess collumnes (.y) since .y is inserted into .x wherever .x was empty.
-swekval[,col.names.y] <- NULL
-
-swekval2 <- swekval
-
+######## THE BELOW IS FOR when combined.datasets are done
 
 #swekval <- combined.datasets
 ######################
