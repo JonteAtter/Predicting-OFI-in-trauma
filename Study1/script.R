@@ -11,11 +11,12 @@ source("functions2.R")
 datasets <- rofi::import_data()
 
 ## Merge data
-combined.datasets <- rofi::merge_data(datasets)
+#combined.datasets <- rofi::merge_data(datasets)
 
+combined.datasets <- merge_data(datasets)
 ## Create OFI collumn
-combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
-
+#combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
+combined.datasets$ofi <- create_ofi2(combined.datasets)
 ### Cleaning data
 
 ### Clean previous audit filters

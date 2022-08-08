@@ -1,5 +1,8 @@
 ## Import data
 datasets <- rofi::import_data()
+
+merge_data <- function(datasets) {
+
 kval <- datasets$kvalgranskning2014.2017
 swe <- datasets$swetrau
 
@@ -293,6 +296,7 @@ transfusion_list <- c("Thoracotomi\r\nMassiv tranfusion","Nöd thoracotomi\r\nMa
                       "Massiv transfusion\r\nEj nödthoracotomi  el. bäcken - stabil cirk vid ankomst","Massiv transfusion",
                       "Lever skada\r\nMjältskada\r\nMassiv transfusion","Nöd thoracotomi\r\nMassiv tranfusion")
 liver_list <- c("Leverskada - ej extravasering","Leverskada","Lever skada\r\nMjältskada\r\nMassiv transfusion")
+merged3 <- merged2
 
 merged3$VK_hlr_thorak[merged3$Riktlinje %in% torakotomi_list] <- "Ja"
 merged3$VK_mjaltskada[merged3$Riktlinje %in% spleen_list] <- "Ja"
@@ -316,3 +320,5 @@ merged3$DateTime_ArrivalAtScene <- as.POSIXct(strptime(merged3$DateTime_ArrivalA
 
 combined.datasets <- merged3
 
+return(combined.datasets)
+}
