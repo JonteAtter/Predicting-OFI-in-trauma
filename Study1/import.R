@@ -50,11 +50,11 @@ merge_data <- function(datasets) {
     sum(kval$pat_id[not.in.swetrau] %in% swe$pat_id) ## The pat_id of 4/9 patients are in SweTrau
     identical(sum(kval$tra_id[not.in.swetrau] %in% swe$tra_id), sum(kval$pat_id[not.in.swetrau] %in% swe$pat_id)) ## It's the same 4 patients whose tra_id and pat_id are in SweTrau, so it doesn't matter if we try matching on tra_id or pat_id
 
-#################
-                                        # NEW CODE - need to change pat_id, screened and know these two are wrong and should be:
+    ##
+    ## NEW CODE - need to change pat_id, screened and know these two are wrong and should be:
     kval[is.element(kval$pat_id,c(33973)),"tra_id"] <- c(36078)
     kval[is.element(kval$pat_id,c(33922)),"tra_id"] <- c(36024)
-#####################
+    ##
 
 
     ## Try matching some extra patients based on tra_id 
@@ -64,41 +64,40 @@ merge_data <- function(datasets) {
     merged$tra_id.x <- NULL
     kval.not.matched <- kval[not.in.swetrau, ]
 
-##########
-                                        # NEW CODE
-##########
+    ##
+    ## NEW CODE
+    ##
 
-########
-                                        # To keep it clean and not duplicate all columns again i want to clean all .x columns between merges. 
-#######
+    ##
+    ## To keep it clean and not duplicate all columns again i want to clean all .x columns between merges. 
+    ##
     col.names.x <- names(dplyr::select(merged, ends_with(".x")))
     col.names <- gsub(".x", "", col.names.x)
     col.names.y <- paste(col.names, ".y", sep = "")
->>>>>>> master
 
-######
-                                        # Loop keeps values from .x (swe), 
-                                        # but if they are empty insert values from .y (kval) insted.
-                                        # Manually checked, extremely rare for both .x and .y to exist and when it does, .y is usually an obvious error.
-######
+    ##
+    ## Loop keeps values from .x (swe), 
+    ## but if they are empty insert values from .y (kval) insted.
+    ## Manually checked, extremely rare for both .x and .y to exist and when it does, .y is usually an obvious error.
+    ##
     merged2 <- merged
     for (x in 1:length(col.names.x)){
         merged2[is.na(merged2[,col.names.x[x]]) == TRUE, col.names.x[x]] <- 
             merged2[is.na(merged2[,col.names.x[x]]) == TRUE,col.names.y[x]]
     }
 
-### Removes excess columns (.y) since .y is inserted into .x wherever .x was empty.
+    ## Removes excess columns (.y) since .y is inserted into .x wherever .x was empty.
     merged2[,col.names.y] <- NULL
-#######
+    ##
 
     ## change .x to original names
     colnames(merged2) <- gsub(".x", "", colnames(merged2))
     ##
 
     merged <- merged2
-#####
-                                        # END new code
-#####
+    ##
+    ## END new code
+    ##
 
     merged <- merge(merged, kval.not.matched, by = "tra_id", all.x = TRUE)
     merged.y <- merged[]
@@ -115,9 +114,9 @@ merge_data <- function(datasets) {
     ## This is probably as good as it gets, and we'll have to live with
     ## having 5 unmatched patients between kval and SweTrau
 
-#######
-                                        # OK clean again, since we merged.
-#######
+    ##
+    ## OK clean again, since we merged.
+    ##
     col.names.x <- names(dplyr::select(merged,ends_with(".x")))
     col.names <- gsub(".x", "", col.names.x)
     col.names.y <- paste(col.names, ".y", sep = "")
@@ -128,15 +127,15 @@ merge_data <- function(datasets) {
             merged2[is.na(merged2[,col.names.x[x]]) == TRUE,col.names.y[x]]
     }
 
-### Removes excess collumnes (.y) since .y is inserted into .x wherever .x was empty.
+    ## Removes excess collumnes (.y) since .y is inserted into .x wherever .x was empty.
     merged2[, col.names.y] <- NULL
-#######
+    ##
 
     ## change .x to original names
     colnames(merged2) <- gsub(".x", "", colnames(merged2))
 
     merged <- merged2
-########
+    ##
 
     ## Now try matching fmp and problem
     fmp <- datasets$fmp
@@ -151,12 +150,12 @@ merge_data <- function(datasets) {
     fmp.problem <- as.data.frame(cbind(fmp, problem$Problemomrade_.FMP))
 
     ##
-                                        # "Identical" includes same order? 
-                                        # Just change column name back to Problemomrade_.FMP
+    ## "Identical" includes same order? 
+    ## Just change column name back to Problemomrade_.FMP
     ##
     fmp.problem$Problemomrade_.FMP <- fmp.problem$`problem$Problemomrade_.FMP`
     fmp.problem$`problem$Problemomrade_.FMP` <- NULL
-####
+    ##
 
     ## Create id, arrival and did variables
     fmp.problem$id <- fmp$Personnummer
@@ -243,9 +242,9 @@ merge_data <- function(datasets) {
 
     merged <- merged.swetrau.fmp.problem
 
-#######
-                                        # Combine ID:S
-#######
+    ##
+    ## Combine ID:S
+    ##
 
     merged[is.na(merged[,"PersonIdentity"]) == TRUE, "PersonIdentity"] <- 
         merged[is.na(merged[,"PersonIdentity"]) == TRUE,"pat_personnummer"]
@@ -253,10 +252,10 @@ merge_data <- function(datasets) {
     merged[is.na(merged[,"TempIdentity"]) == TRUE, "TempIdentity"] <- 
         merged[is.na(merged[,"TempIdentity"]) == TRUE,"pat_TempPersonnummer"]
 
-                                        #merged$pat_personnummer <- NULL     Shold we remove?
-                                        #merged$pat_TempPersonnummer <- NULL
+    ##merged$pat_personnummer <- NULL     Shold we remove?
+    ##merged$pat_TempPersonnummer <- NULL
 
-### Columns that should be translated into another column, cant find another way but manual? 
+    ## Columns that should be translated into another column, cant find another way but manual? 
 
     VK.colnames <- c("VK_hlr_thorak","VK_sap_less90","VK_iss_15_ej_iva",
                      "VK_gcs_less9_ej_intubTE","VK_mer_30min_DT","VK_mer_60min_interv")
@@ -269,22 +268,22 @@ merge_data <- function(datasets) {
         merged2[,VK.colnames[x]] <- with(merged2, ifelse(merged2[,kval.colnames[x]] == 1 & is.na(merged2[,VK.colnames[x]]) == TRUE, "Ja", merged2[,VK.colnames[x]]))
         merged2[,VK.colnames[x]] <- with(merged2, ifelse(merged2[,kval.colnames[x]] == 0 & is.na(merged2[,VK.colnames[x]]) == TRUE, "Nej", merged2[,VK.colnames[x]]))
     }
-                                        # Now all kval.colnames should be in VK_ collumns instead, hence remove
+    ## Now all kval.colnames should be in VK_ collumns instead, hence remove
 
     merged2[,kval.colnames] <- NULL
 
-### Convert problemområde to problemområde_.FMP
-                                        #merged2$Problemomrade_.FMP <- with(merged2, ifelse(is.na(merged2$Problemomrade_.FMP) == TRUE, `problemområde`, `Problemomrade_.FMP`))
+    ## Convert problemområde to problemområde_.FMP
+    ##merged2$Problemomrade_.FMP <- with(merged2, ifelse(is.na(merged2$Problemomrade_.FMP) == TRUE, `problemområde`, `Problemomrade_.FMP`))
     merged2$Problemomrade_.FMP[is.na(merged2$Problemomrade_.FMP)] <- merged2$problemområde[is.na(merged2$Problemomrade_.FMP)]
     merged2[,"problemområde"] <- NULL
 
-### Need to fill in VK_avslutad to get them through create_ofi?
+    ## Need to fill in VK_avslutad to get them through create_ofi?
     ## Need to get some data for mortality?
 
     merged2$VK_avslutad <- with(merged2, ifelse(is.na(merged2$bedomn_primar_granskning) == FALSE, "Ja", `VK_avslutad`))
-### Dont want to remove "bedomn_primar_granskning" since its an easy way of identifying patients from kvaldata.
+    ## Dont want to remove "bedomn_primar_granskning" since its an easy way of identifying patients from kvaldata.
 
-                                        # To convert "riktlinjer" to corresponding VK_ column
+    ## To convert "riktlinjer" to corresponding VK_ column
 
     torakotomi_list <- c("Torakotomi","Torakotomi","Thoracotomi\r\nMassiv tranfusion","Nöd thoracotomi\r\nMassiv tranfusion")
     spleen_list <- c("Mjältskada","Lever skada\r\nMjältskada\r\nMassiv transfusion")
@@ -299,7 +298,7 @@ merge_data <- function(datasets) {
     merged3$VK_mass_transf[merged3$Riktlinje %in% transfusion_list] <- "Ja"
     merged3$VK_leverskada[merged3$Riktlinje %in% liver_list] <- "Ja"
 
-#### Change column class
+    ## Change column class
     merged3$dt_alarm_hosp <- as.numeric(merged3$dt_alarm_hosp)
     merged3$dt_alarm_scene <- as.numeric(merged3$dt_alarm_scene)
     merged3$dt_ed_emerg_proc <- as.numeric(merged3$dt_ed_emerg_proc)
