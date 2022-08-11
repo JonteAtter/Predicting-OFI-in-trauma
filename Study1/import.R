@@ -247,7 +247,7 @@ sum(is.na(merged.swetrau.fmp.problem$origin.y)) ## 262 cases are still missing f
 merged <- merged.swetrau.fmp.problem
 
 #######
-# Combine ID:S
+# Combine hashed ID:S
 #######
 
 merged[is.na(merged[,"PersonIdentity"]) == TRUE, "PersonIdentity"] <- 
@@ -256,7 +256,7 @@ merged[is.na(merged[,"PersonIdentity"]) == TRUE, "PersonIdentity"] <-
 merged[is.na(merged[,"TempIdentity"]) == TRUE, "TempIdentity"] <- 
   merged[is.na(merged[,"TempIdentity"]) == TRUE,"pat_TempPersonnummer"]
 
-#merged$pat_personnummer <- NULL     Shold we remove?
+#merged$pat_personnummer <- NULL     Should we remove?
 #merged$pat_TempPersonnummer <- NULL
 
 ### Columns that should be translated into another column, cant find another way but manual? 
@@ -319,6 +319,6 @@ merged3$DateTime_Of_Trauma <- as.POSIXct(strptime(merged3$DateTime_Of_Trauma, fo
 merged3$DateTime_ArrivalAtScene <- as.POSIXct(strptime(merged3$DateTime_ArrivalAtScene, format = "%Y-%m-%d %H:%M"))
 
 combined.datasets <- merged3
-
+combined.datasets$did.y <- NULL
 return(combined.datasets)
 }
