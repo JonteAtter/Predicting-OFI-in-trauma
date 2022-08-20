@@ -27,7 +27,9 @@ create_ofi2 <- function(data,
   ## this code was written
   ofi.data <- data[, variable.names]
   names(ofi.data) <- names(variable.names)
-  ofi.data <- check_data_shift(ofi.data)
+  ##### SIC: Changed reference to check_data_shit2
+  
+  ofi.data <- check_data_shift2(ofi.data)
   
   ## Create ofi variable
   
@@ -59,7 +61,7 @@ create_ofi2 <- function(data,
   return (ofi)
 }
 
-check_data_shift <- function(ofi.data) {
+check_data_shift2 <- function(ofi.data) {
   ## Check quality review done variable
   ofi.data$quality.review.done <- tolower(as.character(ofi.data$quality.review.done))
   levels.quality.review.done <- unique(ofi.data$quality.review.done)
@@ -103,7 +105,7 @@ check_data_shift <- function(ofi.data) {
 # Merge Data #
 ##############
 
-merge_data <- function(datasets) {
+merge_data2 <- function(datasets) {
   
   kval <- datasets$kvalgranskning2014.2017
   swe <- datasets$swetrau
@@ -442,6 +444,10 @@ merge_data <- function(datasets) {
   
   combined.datasets <- merged3
   
+  ##### Errors found later
+  combined.datasets[combined.datasets$tra_id == "92386","tra_DodsfallsanalysGenomford"] <- 1
+  
+  
   return(combined.datasets)
 }
 
@@ -519,9 +525,9 @@ dataset <- as.data.frame(dataset.clean.af)
 dataset$intub <- with(dataset, ifelse(`pre_intubated` == 1 & is.na(dataset$pre_intubated) == FALSE, 3, `ed_intubated`))
   
   ## Create vectors for variable, separated by type and use - Make sure "na.values.list" is up to date
-  
+  ## Make sure you change cat values in imputation
   ## continuous variables
-  cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value") 
+  cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value","hosp_los_days","iva_dagar_n") 
   
   ## categorical variables
   cat.var <- c("ofi", "res_survival", "intub", "host_care_level", "Gender")
@@ -534,8 +540,9 @@ dataset$intub <- with(dataset, ifelse(`pre_intubated` == 1 & is.na(dataset$pre_i
   
   ## A list that governs values in what variables that should be converted to NA
   na.values.list <- list(ed_gcs_sum = c(99, 999),
-                         ed_rr_value_ = c(99), ## The manual states that RR should not be over 70
-                         ISS = c(0)) 
+                         ed_rr_value = c(99), ## The manual states that RR should not be over 70
+                         ISS = c(0),
+                         res_survival = c(999)) 
   
   #' Convert values in variable to NA
   #' 
@@ -573,7 +580,8 @@ dataset$intub <- with(dataset, ifelse(`pre_intubated` == 1 & is.na(dataset$pre_i
 imputation <- function(dataset) {
   
   ## continuous variables
-  cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value") 
+  cont.var <- c("ed_gcs_sum", "ed_sbp_value", "ISS", "dt_ed_first_ct", "dt_ed_emerg_proc", "pt_age_yrs", "ed_rr_value","hosp_los_days","iva_dagar_n") 
+  
   ## categorical variables
   cat.var <- c("ofi", "res_survival", "intub", "host_care_level", "Gender")
   
@@ -639,8 +647,11 @@ bootstrap <- function(data, index) {
     ##}
     
     ## Create OFI collumn
-     random.datasets$ofi <- rofi::create_ofi(random.datasets)
-    
+    #
+    # CHANGE HERE WHEN ROFI IS DONE!
+    #
+    # random.datasets$ofi <- rofi::create_ofi(random.datasets)
+    random.datasets$ofi <- create_ofi2(random.datasets)
     ## Clean previous audit filters
     random.clean.af <- clean_audit_filters(random.datasets)
     
@@ -660,7 +671,9 @@ bootstrap <- function(data, index) {
     ## Imputation
     imputed.dataset <- imputation(clean.random.dataset)
     
-    preprocessed.data <- preprocess_data(imputed.dataset)
+    ### Remove predicts without variance (imputed without missing data)
+    variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
+    preprocessed.data <- preprocess_data(variance.data)
     
     results.lr <- run_ml(dataset = preprocessed.data,
                          method = 'glmnet',
@@ -671,7 +684,7 @@ bootstrap <- function(data, index) {
                          training_frac = 0.8,
                          seed = 2019)
     
-    results.forest <- run_ml(dataset = preprocessed.data,
+  results.forest <- run_ml(dataset = preprocessed.data,
                              method = 'rf',
                              outcome_colname = "ofi",
                              perf_metric_name = "AUC",
@@ -703,14 +716,14 @@ bootstrap <- function(data, index) {
     accuracy.lr <- mean(unlist(accuracy.lr))
     ##ici.lr <- ici(prediction.lr, labels) ## Fungerar ej direkt men ej hunnit felsöka 100%
     
-    ## Randrom forest
-    final.model.forest <- results.forest$trained_model$finalModel
-    pred.rf <- predict(final.model.forest, newdata = as.matrix(results.forest$test_data), predict.all = TRUE)
-    pred.forest <- pred.rf$aggregate
-    prediction.forest3 <- ROCR::prediction(as.numeric(pred.forest), as.numeric(labels))
-    auc.forest <- unlist(ROCR::performance(prediction.forest3, measure = "auc")@y.values)
-    accuracy.forest <- ROCR::performance(prediction.forest3, measure = "acc")@y.values
-    accuracy.forest <- mean(unlist(accuracy.forest))
+## Randrom forest
+    ## final.model.forest <- results.forest$trained_model$finalModel
+    ## pred.rf <- predict(final.model.forest, newdata = as.matrix(results.forest$test_data), predict.all = TRUE)
+    ## pred.forest <- pred.rf$aggregate
+    ## prediction.forest3 <- ROCR::prediction(as.numeric(pred.forest), as.numeric(labels))
+    ## auc.forest <- unlist(ROCR::performance(prediction.forest3, measure = "auc")@y.values)
+    ## accuracy.forest <- ROCR::performance(prediction.forest3, measure = "acc")@y.values
+    ## accuracy.forest <- mean(unlist(accuracy.forest))
     
 ### SVM
     ## final.model.vector.machine <- results.vector.machine$trained_model$finalModel
@@ -726,33 +739,41 @@ bootstrap <- function(data, index) {
     auc.boost <- unlist(ROCR::performance(pred.boost, measure = "auc")@y.values)
     auc.boost <- 1-as.numeric(auc.boost)
     accuracy.boost <- ROCR::performance(pred.boost, measure = "acc")@y.values
-    accuracy.boost <- mean(unlist(accuracy.boost))
+    accuracy.boost <- 1-mean(unlist(accuracy.boost))
     
     ## Result summary
     
     ## Delta AUC 
-    lr.rf.auc <- abs(as.numeric(auc.lr) - as.numeric(auc.forest))
+    #lr.rf.auc <- abs(as.numeric(auc.lr) - as.numeric(auc.forest))
     lr.boost.auc <- abs(as.numeric(auc.lr) - as.numeric(auc.boost))
-    rf.boost.auc <- abs(as.numeric(auc.boost) - as.numeric(auc.forest))
+    #rf.boost.auc <- abs(as.numeric(auc.boost) - as.numeric(auc.forest))
     
     auc <- c(lr.auc = auc.lr,
-             rf.auc = auc.forest,
              boost.auc = auc.boost,
-             delta.lr.rf.auc = lr.rf.auc,
-             delta.lr.boost.auc = lr.boost.auc,
-             delta.rf.boost.auc = rf.boost.auc)
+             delta.lr.boost.auc = lr.boost.auc)
+    
+##    auc <- c(lr.auc = auc.lr,
+##             rf.auc = auc.forest,
+##             boost.auc = auc.boost,
+##             delta.lr.rf.auc = lr.rf.auc,
+##             delta.lr.boost.auc = lr.boost.auc,
+##             delta.rf.boost.auc = rf.boost.auc)
     
     ## Delta accuracy
-    lr.rf.acc <- abs(as.numeric(accuracy.lr) - as.numeric(accuracy.forest))
+##    lr.rf.acc <- abs(as.numeric(accuracy.lr) - as.numeric(accuracy.forest))
     lr.boost.acc <- abs(as.numeric(accuracy.lr) - as.numeric(accuracy.boost))
-    rf.boost.acc <- abs(as.numeric(accuracy.boost) - as.numeric(accuracy.forest))
+##    rf.boost.acc <- abs(as.numeric(accuracy.boost) - as.numeric(accuracy.forest))
     
     accuracy <- c(lr.accuracy = accuracy.lr,
-                  rf.accuracy = accuracy.forest,
                   boost.accuracy = accuracy.boost,
-                  delta.lr.rf.accuracy = lr.rf.acc,
-                  delta.lr.boost.accuracy = lr.boost.acc,
-                  delta.rf.boost.accuracy = rf.boost.acc)
+                  delta.lr.boost.accuracy = lr.boost.acc)
+    
+##    accuracy <- c(lr.accuracy = accuracy.lr,
+##                  rf.accuracy = accuracy.forest,
+##                  boost.accuracy = accuracy.boost,
+##                  delta.lr.rf.accuracy = lr.rf.acc,
+##                  delta.lr.boost.accuracy = lr.boost.acc,
+##                  delta.rf.boost.accuracy = rf.boost.acc)
     
     boot.result <- c(accuracy,auc)
     
