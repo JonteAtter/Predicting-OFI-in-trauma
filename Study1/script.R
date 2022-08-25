@@ -60,16 +60,23 @@ auc.lr <- ROCR::performance(pred.lr, measure = "auc")@y.values
 auc.lr <- unlist(auc.lr)
 accuracy.lr <- ROCR::performance(pred.lr, measure = "acc")@y.values
 accuracy.lr <- mean(unlist(accuracy.lr))
-##ici.lr <- ici(prediction.lr, labels) ## Fungerar ej direkt men ej hunnit felsöka 100%
+labels.ici <- as.character(labels)
+labels.ici[labels.ici == "Yes"] <- 1
+labels.ici[labels.ici == "No"] <- 0 
+labels.ici <- as.numeric(labels.ici)
+prediction.lr.vector <- as.vector(prediction.lr)
+ici.lr <- gmish::ici(prediction.lr.vector, labels.ici)
 
 ## Randrom forest
  final.model.forest <- results.forest$trained_model$finalModel
  pred.rf <- predict(final.model.forest, newdata = as.matrix(results.forest$test_data), predict.all = TRUE)
  pred.forest <- pred.rf$aggregate
- prediction.forest3 <- ROCR::prediction(as.numeric(pred.forest), as.numeric(labels))
- auc.forest <- unlist(ROCR::performance(prediction.forest3, measure = "auc")@y.values)
- accuracy.forest <- ROCR::performance(prediction.forest3, measure = "acc")@y.values
+ prediction.rf <- ROCR::prediction(as.numeric(pred.forest), as.numeric(labels))
+ auc.forest <- unlist(ROCR::performance(prediction.rf, measure = "auc")@y.values)
+ accuracy.forest <- ROCR::performance(prediction.rf, measure = "acc")@y.values
  accuracy.forest <- mean(unlist(accuracy.forest))
+ prediction.rf.vector <- as.vector(unlist(prediction.rf@predictions))
+ ici.rf <- gmish::ici(prediction.rf.vector, labels.ici)
 
 ### SVM
 ## final.model.vector.machine <- results.vector.machine$trained_model$finalModel
@@ -86,6 +93,9 @@ auc.boost <- unlist(ROCR::performance(pred.boost, measure = "auc")@y.values)
 auc.boost <- 1-as.numeric(auc.boost)
 accuracy.boost <- ROCR::performance(pred.boost, measure = "acc")@y.values
 accuracy.boost <- 1-mean(unlist(accuracy.boost))
+prediction.boost.vector <- as.vector(prediction.boost)
+ici.boost <- gmish::ici(prediction.boost.vector, labels.ici)
+ici.boost <- 1-ici.boost
 
 ## Result summary
 
