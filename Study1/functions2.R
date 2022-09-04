@@ -714,7 +714,7 @@ bootstrap <- function(data, index) {
     auc.lr <- unlist(auc.lr)
     accuracy.lr <- ROCR::performance(pred.lr, measure = "acc")@y.values
     accuracy.lr <- mean(unlist(accuracy.lr))
-    ##ici.lr <- ici(prediction.lr, labels) ## Fungerar ej direkt men ej hunnit felsöka 100%
+##  ici.lr <- ici(prediction.lr, labels) ## Fungerar ej direkt men ej hunnit felsöka 100%
     
 ## Randrom forest
     ## final.model.forest <- results.forest$trained_model$finalModel
