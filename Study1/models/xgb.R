@@ -6,7 +6,7 @@ registerDoParallel(cores = all_cores)
 
 dataset <-
   read.csv(file = 'data/ofi.onehotencoded.imputed.standardised.csv')
-
+#dataset <- combined.datasets
 dataset <- dataset[, -grep("VK_", colnames(dataset))]
 dataset <- dataset[, -grep("ais_", colnames(dataset))]
 dataset <- dataset[, -grep("icd_", colnames(dataset))]
