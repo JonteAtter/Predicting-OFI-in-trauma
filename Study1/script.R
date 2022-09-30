@@ -11,11 +11,9 @@ for (package in packages) library(package, character.only = TRUE)
 datasets <- rofi::import_data()
 
 ## Merge data
-#combined.datasets <- rofi::merge_data(datasets)
-combined.datasets <- merge_data2(datasets)
+combined.datasets <- rofi::merge_data(datasets)
 ## Create OFI collumn
-#combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
-combined.datasets$ofi <- create_ofi2(combined.datasets)
+combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
 ### Cleaning data
 
 ### Clean previous audit filters
@@ -39,6 +37,15 @@ variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
 preprocessed.data <- preprocess_data(variance.data)
 tv <- c(1:round(nrow(clean.dataset)*0.8, digits = 0))
 
+
+#### Boot test
+#
+#results.boot3 <- boot(data=combined.datasets, statistic=bootstrap,
+#                      R=100)
+#
+# Change index to access different performance meassures
+#results.ci <- boot.ci(results.boot3, index = 1, type = "norm")
+#
 ### Load results to make it faste for kniting
 ## Save the output of mikropml as an rds object in order to do fast kniting
 ##
@@ -95,7 +102,7 @@ accuracy.boost <- ROCR::performance(pred.boost, measure = "acc")@y.values
 accuracy.boost <- 1-mean(unlist(accuracy.boost))
 prediction.boost.vector <- as.vector(prediction.boost)
 ici.boost <- gmish::ici(prediction.boost.vector, labels.ici)
-ici.boost <- 1-ici.boost
+ici.boost <- 1-ici.boost ###### IS THIS correct?
 
 ## Result summary
 
