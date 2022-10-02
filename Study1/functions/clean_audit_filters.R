@@ -31,10 +31,8 @@ clean_audit_filters <- function(data) {
   Levels.audit.filters <- unique(as.vector(as.matrix(data[,audit.filter])))
   Levels.audit.filters <- Levels.audit.filters[!is.na(Levels.audit.filters)]
   
-  ##Chose to remove NA above becouse sort(c("Yes", NA, "No")) only returns "No"  "Yes"?
-  
   ##### 
-  ##.   SIC (!!!) Oklart men nedan crashar bootstrapen?
+  ##.   SIC (!!!) The safety check is not compatible with a bootsrap, replications probably lack one of the original values.
   ######
   #original.levels.audit.filters <- sort(c("Yes", NA, "No"))
   #if (!identical(Levels.audit.filters, original.levels.audit.filters))
@@ -43,12 +41,6 @@ clean_audit_filters <- function(data) {
   #########
   #  Convert NA:s in VK rows to No if VK_avslutad = Yes (To be able to calc false neg)
   #########
-  
-  #  for (i in 1:nrow(data)) {
-  #    if (is.na(data[i,"VK_avslutad"]) == FALSE && data[i,"VK_avslutad"] == "Yes" && is.na(data[i,audit.filter2]) == TRUE ) {
-  #      data[i,audit.filter2] <- "No"
-  #    }
-  #  }
   
   data[, audit.filter2] <- lapply(data[, audit.filter2], function(column) {
     column[is.na(column) & data$VK_avslutad == "Yes"] <- "No"
