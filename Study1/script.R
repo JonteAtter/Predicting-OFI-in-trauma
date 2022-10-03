@@ -33,22 +33,25 @@ missing.outcome <- is.na(dataset.clean.af$ofi)
 n.missing.outcome <- sum(missing.outcome)
 dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
 
-## Need to check if furhter predictors follow swetrau. Check function.
+## Need to check if further/all predictors follow swetrau. Check function.
 clean.dataset <- clean_all_predictors(dataset.clean.af)
 
-#### Remove collumns not used for prediction
+#### Remove columns not used for prediction, expand?
 smaller.data <- remove_columns(clean.dataset)
-
-
-
 
 ## Imputation ---- OLD Function. Need consensus on how we imputate. 
 #imputed.dataset <- imputation(clean.dataset)
 ### Remove predicts without variance (imputed without missing data)
 #### variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
 
-#### hyperoptimering??? from mikropml.
-preprocessed.data <- preprocess_data(variance.data)
+## Preprocess the data. from mikropml, have a better way??
+preprocessed.data <- preprocess_data(smaller.data)
+
+## TODO:
+## -Sync the above pipeline to your models.
+## -Extract optimized hyperparameters based on trainingdata
+## -create performance measures, vector with probabilities? 
+## -Input these parameters in models applied to test data -> put in bootstrap inkl perfmormance measure
 
 
 
