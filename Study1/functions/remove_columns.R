@@ -8,7 +8,7 @@ data <- data[,-grep("ICD_", colnames(data))]
 data <- data[,-grep("pac_", colnames(data))]
 data <- data[,-grep("Fr", colnames(data))]
 data <- data[,-grep("Date", colnames(data))]
-data <- data[,-grep("dt", colnames(data))]
+# data <- data[,-grep("dt", colnames(data))] need these
 
 #### Columns not needed for prediction
 data <- subset(data,
@@ -41,7 +41,8 @@ data <- subset(data,
                            ,IVA_eft_avd                    
                            ,iva_dagar_n          
                            ,Död.datum
-                           ,uppfolj_30_dgr                 
+                           ,uppfolj_30_dgr 
+                           ,iva_vardtillfallen_n
                            ,Klar
                            ,SweTr                          
                            ,Flyttad_till_avd_eft_iva
