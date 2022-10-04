@@ -60,7 +60,10 @@ bootstrap <- function(data, index) {
   filename <- paste0("out/boot.result.", gsub(".", "", as.numeric(Sys.time()), fixed = TRUE), ".Rds")
   saveRDS(boot.result, filename)
   message("Bootstrap analysis completed and results saved")
-  
-  
+#####  
+# This function can then be used to get CI:s for boot.result via:
+# results.boot <- boot(data=test.data, statistic=bootstrap,R=1000)  
+#  
+#### 
   return(boot.result)
 }
