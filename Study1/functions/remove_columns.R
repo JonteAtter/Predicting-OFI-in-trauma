@@ -1,24 +1,26 @@
 #### Need to add collumns here???
 
 remove_columns <- function(data) {
-data<-dataset.clean.af
+
 data <- data[,-grep("VK_", colnames(data))]
 data <- data[,-grep("AIS", colnames(data))]
 data <- data[,-grep("ICD_", colnames(data))]
 data <- data[,-grep("pac_", colnames(data))]
 data <- data[,-grep("Fr", colnames(data))]
+data <- data[,-grep("Date", colnames(data))]
+data <- data[,-grep("dt", colnames(data))]
 
 #### Columns not needed for prediction
 data <- subset(data,
                select = -c(did
+                           ,Ankomst_te
                            ,tra_id                         
                            ,pat_id
                            ,Sjukhuskod                     
                            ,PersonIdentity
                            ,TempIdentity                   
                            ,DOB
-                           ,Deceased                       
-                           ,DeceasedDate
+                           ,Deceased
                            ,tra_DodsfallsanalysGenomford
                            ,id                             
                            ,arrival
@@ -37,8 +39,7 @@ data <- subset(data,
                            ,tillavdelning_Direkt_eft_TE_AKM
                            ,IVA_efter_TE
                            ,IVA_eft_avd                    
-                           ,iva_dagar_n
-                           ,iva_vardtillfallen_n           
+                           ,iva_dagar_n          
                            ,Död.datum
                            ,uppfolj_30_dgr                 
                            ,Klar
