@@ -36,15 +36,21 @@ dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
 clean.dataset <- clean_all_predictors(dataset.clean.af)
 
 #### Remove columns not used for prediction - NEED TO EXPAND
+## Keep some ID variabel? Removes time and date, korrekt?
 smaller.data <- remove_columns(clean.dataset)
 
-## Imputation ---- OLD Function. Need consensus on how we imputate. 
-#imputed.dataset <- imputation(clean.dataset)
+## Imputation Need consensus on how we imputate. 
+imputed.dataset <- imputation(smaller.data)
 ### Remove predicts without variance (imputed without missing data)
-#### variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
+variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
 
-## Preprocess the data. from mikropml, have a better way??
-preprocessed.data <- preprocess_data(smaller.data)
+## Preprocess the data. Cant handle dates/times. from mikropml, have a better way?? 
+#is.POSIXct <- function(x) inherits(x, "POSIXct")
+#time.cols <- colnames(smaller.data %>% select_if(is.POSIXct))
+
+#test <-  smaller.data[ , -which(names(smaller.data) %in% time.cols)]
+
+preprocessed.data <- preprocess_data(variance.data)
 
 ## TODO:
 ## -Sync the above pipeline to your models.
