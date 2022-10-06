@@ -14,7 +14,6 @@ imputation <- function(dataset) {
   
   ###cont
   
-  test <- smaller.data
   cont.var <- colnames(test %>% select_if(is.numeric))
 
   cat.var <- colnames(test %>% select_if(is.factor))
