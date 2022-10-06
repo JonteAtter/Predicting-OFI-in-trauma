@@ -14,10 +14,9 @@ imputation <- function(dataset) {
   
   ###cont
   
-  test <- smaller.data
-  cont.var <- colnames(test %>% select_if(is.numeric))
+  cont.var <- colnames(dataset %>% select_if(is.numeric))
 
-  cat.var <- colnames(test %>% select_if(is.factor))
+  cat.var <- colnames(dataset %>% select_if(is.factor))
 #  cont.var<- c("pt_age_yrs","pre_gcs_sum","pre_gcs_motor","ed_gcs_sum","ed_gcs_motor",
 #               "pre_sbp_value","ed_sbp_value","pre_rr_value","ed_rr_value","ed_be_art",
 #               "ed_inr","hosp_vent_days","hosp_los_days","res_gos_dischg","ISS","NISS",

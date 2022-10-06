@@ -5,32 +5,6 @@ library(doParallel)
 all_cores <- parallel::detectCores(logical = FALSE)
 registerDoParallel(cores = all_cores)
 
-dataset <-
-  read.csv(file = 'data/ofi.onehotencoded.imputed.standardised.csv')
-dataset <-
-  read.csv(file = 'data/ofi.onehotencoded.imputed.standardised.csv')
-#dataset <- combined.datasets
-dataset <- dataset[, -grep("VK_", colnames(dataset))]
-dataset <- dataset[, -grep("ais_", colnames(dataset))]
-dataset <- dataset[, -grep("icd_", colnames(dataset))]
-dataset <- dataset[, -grep("pac_", colnames(dataset))]
-dataset <- dataset[, -grep("filter_", colnames(dataset))]
-dataset <-
-  subset(
-    dataset,
-    select = -c(
-      iva_dagar_n,
-      iva_vardtillfallen_n,
-      waran_beh_vid_ank,
-      noak_vid_ankomst,
-      fold,
-      ofi_raw
-    )
-  )
-dataset$ofi <- as.factor(dataset$ofi)
-
-data <- dataset
-
 lgb_hyperopt <- function(data) {
   set.seed(2022)
   
@@ -83,5 +57,3 @@ lgb_hyperopt <- function(data) {
   
   return(tuned_model)
 }
-
-hyperopt_lgb <- lgb_hyperopt(dataset)
