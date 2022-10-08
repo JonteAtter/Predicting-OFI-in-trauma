@@ -71,28 +71,28 @@ variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
 
 preprocessed.data <- preprocess_data(variance.data)
 
-# Test train split data 70%-30%
-sample <- sample(c(TRUE, FALSE), nrow(preprocessed.data), replace=TRUE, prob=c(0.7,0.3))
+# Test train split data 80%-20%
+sample <- sample(c(TRUE, FALSE), nrow(preprocessed.data), replace=TRUE, prob=c(0.8,0.2))
 data.train  <- preprocessed.data[sample, ]
 data.test   <- preprocessed.data[!sample, ]
 
 # Select wich models to run
 models <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  #"cat" = cat_hyperopt,
+  "cat" = cat_hyperopt,
   "dt" = dt_hyperopt,
-  #"knn" = knn_hyperopt,
-  #"lgb" = lgb_hyperopt,
+  "knn" = knn_hyperopt,
+  "lgb" = lgb_hyperopt,
   "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt
-  #"svm" = svm_hyperopt,
-  #"xgb" = xgb_hyperopt
+  "rf" = rf_hyperopt,
+  "svm" = svm_hyperopt,
+  "xgb" = xgb_hyperopt
 )
 
 
 results <- c()
 # Number of boots to run (the framework adds 1)
-n.boots = 99
+n.boots = 9
 
 # Run hyperopt + bootstrapping for selected models
 message("RUNNING MODELS: ", paste(names(models), collapse = ', '))
@@ -109,8 +109,8 @@ for (model.name in names(models)){
   pb <- progress::progress_bar$new(format = paste(model.name, "[:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)", sep = " | "),
                                    total = n.boots + 1) 
   
-  results[[ model.name  ]]  <- boot(data=data.train, statistic=bootstrap, R=n.boots, model=model,
-                                   test=data.test, prog = pb)
+  results[[ model.name  ]]  <- boot(data=data.train, statistic=bootstrap, R=n.boots, 
+                                    model=model, test=data.test, prog = pb)
   
   message(sprintf("DONE WITH MODEL: %s", model.name))
 }
@@ -119,10 +119,11 @@ message("DONE TESTING MODELS")
 
 
 ## test data requires VK columns
-#pb <- progress::progress_bar$new(format = "audit filters | [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
-#                                 total = n.boots + 1) 
-#results[[ "auditfilters" ]]  <- boot(data=data.train, statistic=bootstrap, R=n.boots, model=audit_filters_predict(),
-#                                  test=data.test, prog = pb, audit.filter=TRUE)
+pb <- progress::progress_bar$new(format = "audit filters | [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
+                                 total = n.boots + 1) 
+results[[ "auditfilters" ]]  <- boot(data=NA, statistic=bootstrap, R=n.boots, 
+                                     model=audit_filters_predict, test=clean.dataset, 
+                                     prog = pb, audit.filter=TRUE)
 
 
 #### Boot test

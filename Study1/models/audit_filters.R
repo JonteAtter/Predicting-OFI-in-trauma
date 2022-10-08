@@ -11,6 +11,7 @@ audit_filters_create <- function(data){
   # VK_leverskada
   # ais codes?
   audit_filters$leverskada <- as.logical(data$VK_leverskada)
+  audit_filters$leverskada[is.na(audit_filters$leverskada)] <- FALSE
   
   
   # VK_gcs_less9_ej_intubTE
@@ -21,6 +22,7 @@ audit_filters_create <- function(data){
   # VK_mjaltskada
   # ais codes?
   audit_filters$mjaltskada <- as.logical(data$VK_mjaltskada)
+  audit_filters$mjaltskada[is.na(audit_filters$mjaltskada)] <- FALSE
   
   
   # VK_mer_30min_DT
@@ -30,6 +32,7 @@ audit_filters_create <- function(data){
   
   # VK_mass_transf
   audit_filters$mass_transf <- as.logical(data$VK_mass_transf)
+  audit_filters$mass_transf[is.na(audit_filters$mass_transf)] <- FALSE
   
   
   # VK_mer_60_min_interv
@@ -43,6 +46,7 @@ audit_filters_create <- function(data){
   
   # VK_ej_trombrof_TBI_72h
   audit_filters$ej_trombrof_TBI_72h <- as.logical(data$VK_ej_trombrof_TBI_72h)
+  audit_filters$ej_trombrof_TBI_72h[is.na(audit_filters$ej_trombrof_TBI_72h)] <- FALSE
   
   
   # VK_iss_15_ej_TE
@@ -54,9 +58,9 @@ audit_filters_create <- function(data){
 }
 
 audit_filters_predict <- function(data){
-  audit_filters <- audit_filters_create(data)
+  audit.filters <- audit_filters_create(data)
   
-  preds <- as.integer(rowSums(within(audit_filters, rm(id))) >= 1)
+  preds <- as.integer(rowSums(audit.filters, na.rm = TRUE) >= 1)
   
   return(preds)
 }
