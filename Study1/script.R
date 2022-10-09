@@ -5,12 +5,31 @@
 #library(devtools)
 #install_github("martingerdin/rofi")
 
+# Treesnip version: remotes::install_github("curso-r/treesnip@catboost")
+# Catboost: devtools::install_github('catboost/catboost', subdir = 'catboost/R-package')
+
+## Lock seed
+set.seed(2022)
+
+## Activate multithreading
+library(doParallel)
+all_cores <- parallel::detectCores(logical = FALSE)
+registerDoParallel(cores = all_cores)
+
 ## Load packages
-packages <- c("rofi","Gmisc", "stringr", "mikropml", "dplyr", "labelled", "DBI", "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret")
+packages <- c("rofi","Gmisc", "stringr", "dplyr", "labelled", "DBI", 
+              "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", 
+              "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret",
+              "treesnip", "tidymodels", "doParallel", "treesnip", "baguette", 
+              "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
+              "kknn")
 for (package in packages) library(package, character.only = TRUE)
 
 ## Load functions
 source("functions/functions.R")
+
+# Load models
+source("models/models.R")
 
 ## Import data
 datasets <- rofi::import_data()
@@ -28,9 +47,12 @@ combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
 dataset.clean.af <- clean_audit_filters(combined.datasets)
 
 ## Separate and store cases without known outcome
-missing.outcome <- is.na(dataset.clean.af$ofi)
-n.missing.outcome <- sum(missing.outcome)
-dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
+#missing.outcome <- is.na(dataset.clean.af$ofi)
+#n.missing.outcome <- sum(missing.outcome)
+#dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
+
+dataset.clean.af$ofi[is.na(dataset.clean.af$ofi)] <- "No"
+
 
 ## Fix formating and remove wrong values like 999
 clean.dataset <- clean_all_predictors(dataset.clean.af)
@@ -52,12 +74,54 @@ variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
 
 preprocessed.data <- preprocess_data(variance.data)
 
-## TODO:
-## -Sync the above pipeline to your models.
-## -Extract optimized hyperparameters based on trainingdata
-## -create performance measures, vector with probabilities? 
-## -Input these parameters in models applied to test data -> put in bootstrap inkl perfmormance measure
+# Select wich models to run
+models <- c(
+  #"bart" = bart_hyperopt, # unused tree argument bug?
+  #"cat" = cat_hyperopt,
+  #"dt" = dt_hyperopt,
+  #"knn" = knn_hyperopt,
+  #"lgb" = lgb_hyperopt,
+  "lr" = lr_hyperopt
+  #"rf" = rf_hyperopt,
+  #"svm" = svm_hyperopt,
+  #"xgb" = xgb_hyperopt
+)
 
+
+results <- c()
+# Number of boots to run (the framework adds 1)
+n.boots = 9
+
+# Run hyperopt + bootstrapping for selected models
+message("RUNNING MODELS: ", paste(names(models), collapse = ', '))
+for (model.name in names(models)){
+  message("#---------------#")
+  message(sprintf("STARTING MODEL: %s", model.name))
+  
+  model.hyperopt <- models[model.name][[1]]
+  
+  message("HYPEROPTING MODEL")
+  model <- model.hyperopt(preprocessed.data)
+  
+  message("BOOTSTRAPPING MODEL")
+  pb <- progress::progress_bar$new(format = paste(model.name, "[:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)", sep = " | "),
+                                   total = n.boots + 1) 
+  
+  results[[ model.name  ]]  <- boot(data=preprocessed.data, statistic=bootstrap, 
+                                    R=n.boots, model=model, prog = pb)
+  
+  message(sprintf("DONE WITH MODEL: %s", model.name))
+}
+message("#---------------#")
+message("DONE TESTING MODELS")
+
+
+## test data requires VK columns
+pb <- progress::progress_bar$new(format = "audit filters | [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
+                                 total = n.boots + 1) 
+results[[ "auditfilters" ]]  <- boot(data=clean.dataset, statistic=bootstrap, 
+                                     R=n.boots, model=audit_filters_predict, prog = pb, 
+                                     audit.filter=TRUE)
 
 
 #### Boot test

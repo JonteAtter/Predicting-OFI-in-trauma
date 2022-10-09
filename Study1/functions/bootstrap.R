@@ -2,68 +2,55 @@
 ## Bootstrap ##  
 ###############
 
-###### data should be test.data?
+bootstrap <- function(data, index, model, prog, audit.filter=FALSE) {
+  if(length(unique(index)) == nrow(data)){
+    # On first iteration split randomly 70%-30% since boot package provides all data on first iteration
+    sample <- sample(c(TRUE, FALSE), nrow(data), replace=TRUE, prob=c(0.7,0.3))
+    train.data  <- data[sample, ]
+    test.data   <- data[!sample, ]
+  } else {
+    # On all other iterations use data not included in boot as test data
+    test.index <- setdiff(unique(index), 1:length(data))
+    
+    train.data <- data[index,]
+    test.data <- data[test.index,]
+  }
+  
+  test.labels <- as.numeric(test.data$ofi)
+  test.data <- subset(test.data, select = -ofi)
+  
+  if (audit.filter){
+    # Audit filter does not needed to be fitted
+    test.probs <- model(test.data)
+  } else {
+    # Train model
+    model.fitted <- fit(model, ofi ~ ., data = train.data)
+    
+    # Get prediction probabilities for each test case
+    test.probs <- pull(predict(model.fitted, test.data, type = "prob"), .pred_Yes)
+  }
+  
+  test.preds <- ROCR::prediction(test.probs, test.labels)
 
-bootstrap <- function(data, index) {
-  random.dataset <- data[index,]
+  auc <- ROCR::performance(test.preds, measure = "auc")@y.values[[1]][1]
+  # This might be "cheating" since it calculates the optimal cut off value for highest accuracy.
+  accuracy <- ROCR::performance(test.preds, measure = "acc")@y.values[[1]][1]
   
-  ##if (!is.null(index)) {
-  ##  random.datasets <- data[index,]. #### Fungerade ej direkt, och tog bort i ett försök att minimera felkällor. 
-  ##}
-  
-  ##### Since data == test.data(?) in a raw format we must clean a standard way -> script.
-  
-  ####################
-  ### Cleaning data ##
-  ####################
-  ### Clean audit filters
-  dataset.clean.af <- clean_audit_filters(random.dataset)
+  # ICI recommends > 1000 observations
+  ici <- gmish::ici(test.probs, test.labels - 1)
 
-  ## Fix formating and remove wrong values like 999
-  clean.dataset <- clean_all_predictors(dataset.clean.af)
   
-  #### Remove columns not used for prediction
-  ## Keep some ID variabel? Removes time and date, korrekt?
-  smaller.data <- remove_columns(clean.dataset)
+  boot.result <- c(accuracy, auc, ici)
   
-  ## Imputation Need consensus on how we imputate. 
-  imputed.dataset <- imputation(smaller.data)
-  ### Remove predicts without variance (imputed without missing data)
-  variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
+  #if (!dir.exists("out"))
+  #  dir.create("out")
+  #filename <- paste0("out/boot.result.", gsub(".", "", as.numeric(Sys.time()), fixed = TRUE), ".Rds")
+  #saveRDS(boot.result, filename)
+  #message("Bootstrap analysis completed and results saved")
   
-
-  preprocessed.data <- preprocess_data(variance.data)
+  # Increment progress bar
+  prog$tick()
   
-######## Ok Kelvin, we need to implement your models below!
-#
-# So for log reg: Antar att dessa funktioner osv måste sparas i env innan vi kör?
-# hyperopt_lr <- lr_hyperopt(preprocessed.data) 
-# 
-#  lr_fit <- fit(hyperopt_lr, ofi ~ ., data = train_data)
-#  preds <- predict(lr_fit, test_data, type = "prob") 
-#  
-#  labels <- facit för testdata
-#  
-#  pred.lr <- ROCR::prediction(preds, labels)
-#  auc.lr <- ROCR::performance(pred.lr, measure = "auc")@y.values
-#  accuracy.lr <- ROCR::performance(pred.lr, measure = "acc")@y.values
-#  ici.lr <- gmish::ici(pred.lr, labels)
-# 
-#  boot.results <- c(accuracy.lr,auc.lr,ici.lr)
-#
-# Repetera för varje modell, där man får spara prestationsmåtten i listor som kan läggas i boot.results
-#  
-########  
   
-  if (!dir.exists("out"))
-    dir.create("out")
-  filename <- paste0("out/boot.result.", gsub(".", "", as.numeric(Sys.time()), fixed = TRUE), ".Rds")
-  saveRDS(boot.result, filename)
-  message("Bootstrap analysis completed and results saved")
-#####  
-# This function can then be used to get CI:s for boot.result via:
-# results.boot <- boot(data=test.data, statistic=bootstrap,R=1000)  
-#  
-#### 
   return(boot.result)
 }
