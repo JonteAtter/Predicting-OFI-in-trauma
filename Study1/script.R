@@ -47,9 +47,12 @@ combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
 dataset.clean.af <- clean_audit_filters(combined.datasets)
 
 ## Separate and store cases without known outcome
-missing.outcome <- is.na(dataset.clean.af$ofi)
-n.missing.outcome <- sum(missing.outcome)
-dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
+#missing.outcome <- is.na(dataset.clean.af$ofi)
+#n.missing.outcome <- sum(missing.outcome)
+#dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
+
+dataset.clean.af$ofi[is.na(dataset.clean.af$ofi)] <- "No"
+
 
 ## Fix formating and remove wrong values like 999
 clean.dataset <- clean_all_predictors(dataset.clean.af)
@@ -71,22 +74,17 @@ variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
 
 preprocessed.data <- preprocess_data(variance.data)
 
-# Test train split data 80%-20%
-sample <- sample(c(TRUE, FALSE), nrow(preprocessed.data), replace=TRUE, prob=c(0.8,0.2))
-data.train  <- preprocessed.data[sample, ]
-data.test   <- preprocessed.data[!sample, ]
-
 # Select wich models to run
 models <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  "cat" = cat_hyperopt,
-  "dt" = dt_hyperopt,
-  "knn" = knn_hyperopt,
-  "lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt,
-  "xgb" = xgb_hyperopt
+  #"cat" = cat_hyperopt,
+  #"dt" = dt_hyperopt,
+  #"knn" = knn_hyperopt,
+  #"lgb" = lgb_hyperopt,
+  "lr" = lr_hyperopt
+  #"rf" = rf_hyperopt,
+  #"svm" = svm_hyperopt,
+  #"xgb" = xgb_hyperopt
 )
 
 
@@ -103,14 +101,14 @@ for (model.name in names(models)){
   model.hyperopt <- models[model.name][[1]]
   
   message("HYPEROPTING MODEL")
-  model <- model.hyperopt(data.train)
+  model <- model.hyperopt(preprocessed.data)
   
   message("BOOTSTRAPPING MODEL")
   pb <- progress::progress_bar$new(format = paste(model.name, "[:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)", sep = " | "),
                                    total = n.boots + 1) 
   
-  results[[ model.name  ]]  <- boot(data=data.train, statistic=bootstrap, R=n.boots, 
-                                    model=model, test=data.test, prog = pb)
+  results[[ model.name  ]]  <- boot(data=preprocessed.data, statistic=bootstrap, 
+                                    R=n.boots, model=model, prog = pb)
   
   message(sprintf("DONE WITH MODEL: %s", model.name))
 }
@@ -121,9 +119,9 @@ message("DONE TESTING MODELS")
 ## test data requires VK columns
 pb <- progress::progress_bar$new(format = "audit filters | [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
                                  total = n.boots + 1) 
-results[[ "auditfilters" ]]  <- boot(data=NA, statistic=bootstrap, R=n.boots, 
-                                     model=audit_filters_predict, test=clean.dataset, 
-                                     prog = pb, audit.filter=TRUE)
+results[[ "auditfilters" ]]  <- boot(data=clean.dataset, statistic=bootstrap, 
+                                     R=n.boots, model=audit_filters_predict, prog = pb, 
+                                     audit.filter=TRUE)
 
 
 #### Boot test

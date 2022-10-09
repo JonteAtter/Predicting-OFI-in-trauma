@@ -2,21 +2,29 @@
 ## Bootstrap ##  
 ###############
 
-###### data should be test.data?
-
-bootstrap <- function(data, index, model, test, prog, audit.filter=FALSE) {
-  test.labels <- as.numeric(test$ofi)
-  test.data <- subset(test, select = -ofi)
+bootstrap <- function(data, index, model, prog, audit.filter=FALSE) {
+  if(length(unique(index)) == nrow(data)){
+    # On first iteration split randomly 70%-30% since boot package provides all data on first iteration
+    sample <- sample(c(TRUE, FALSE), nrow(data), replace=TRUE, prob=c(0.7,0.3))
+    train.data  <- data[sample, ]
+    test.data   <- data[!sample, ]
+  } else {
+    # On all other iterations use data not included in boot as test data
+    test.index <- setdiff(unique(index), 1:length(data))
+    
+    train.data <- data[index,]
+    test.data <- data[test.index,]
+  }
+  
+  test.labels <- as.numeric(test.data$ofi)
+  test.data <- subset(test.data, select = -ofi)
   
   if (audit.filter){
     # Audit filter does not needed to be fitted
     test.probs <- model(test.data)
   } else {
-    # Get resampled data to train on
-    boot.data <- data[index,]
-    
     # Train model
-    model.fitted <- fit(model, ofi ~ ., data = boot.data)
+    model.fitted <- fit(model, ofi ~ ., data = train.data)
     
     # Get prediction probabilities for each test case
     test.probs <- pull(predict(model.fitted, test.data, type = "prob"), .pred_Yes)
