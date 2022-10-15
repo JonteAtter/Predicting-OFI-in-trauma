@@ -54,10 +54,10 @@ clean.dataset <- clean_all_predictors(dataset.clean.af)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  #"cat" = cat_hyperopt,
+  "cat" = cat_hyperopt,
   "dt" = dt_hyperopt,
   "knn" = knn_hyperopt,
-  #"lgb" = lgb_hyperopt,
+  "lgb" = lgb_hyperopt,
   "lr" = lr_hyperopt,
   "rf" = rf_hyperopt,
   "svm" = svm_hyperopt,
@@ -103,6 +103,7 @@ for(i in 1:n.resamples){
   train.data <- trained.preprocessor %>% bake(new_data = NULL)
   test.data <- trained.preprocessor %>% bake(new_data = test.data)
   test.target <- test.data$ofi
+  test.data <- subset(test.data, select = -ofi)
   
   resample.results <- list("target" = test.target)
   
