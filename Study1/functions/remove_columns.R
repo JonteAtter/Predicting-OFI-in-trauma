@@ -49,6 +49,9 @@ data <- subset(data,
                            ,inlagd_swetrau                 
                            ,waran_beh_vid_ank
                            ,noak_vid_ankomst               
-                           ,Problemomrade_.FMP))
+                           ,Problemomrade_.FMP
+                           ,Gender
+                           ,Kön
+                           ,Tr_Nivå))
 return(data)
 }

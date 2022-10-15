@@ -6,7 +6,11 @@ all_cores <- parallel::detectCores(logical = FALSE)
 registerDoParallel(cores = all_cores)
 
 dt_hyperopt <- function(data) {
-  set.seed(2022)
+  if(file.exists("out/dt.rds")){
+    model <- readRDS("out/dt.rds")
+    
+    return(model)
+  }  
   
   folds <- vfold_cv(data, v = 5, strata = ofi)
   
@@ -45,6 +49,8 @@ dt_hyperopt <- function(data) {
   
   print(show_best(dt_tune, "roc_auc")$mean[1])
   print(tuned_model)
+  
+  saveRDS(tuned_model, "out/dt.rds")
   
   return(tuned_model)
 }

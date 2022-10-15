@@ -2,12 +2,17 @@ library(tidymodels)
 # remotes::install_github("curso-r/treesnip@catboost")
 library(treesnip)
 library(doParallel)
+library(yaml)
 
 all_cores <- parallel::detectCores(logical = FALSE)
 registerDoParallel(cores = all_cores)
 
 cat_hyperopt <- function(data) {
-  set.seed(2022)
+  if(file.exists("out/cat.rds")){
+    model <- readRDS("out/cat.rds")
+    
+    return(model)
+  }  
   
   folds <- vfold_cv(data, v = 5, strata = ofi)
   
@@ -53,6 +58,8 @@ cat_hyperopt <- function(data) {
   
   print(show_best(cat_tune, "roc_auc")$mean[1])
   print(tuned_model)
+  
+  saveRDS(tuned_model, "out/cat.rds")
   
   return(tuned_model)
 }

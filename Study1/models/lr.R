@@ -1,10 +1,17 @@
 library(tidymodels)
 library(doParallel)
+library(tidypredict)
 
 all_cores <- parallel::detectCores(logical = FALSE)
 registerDoParallel(cores = all_cores)
 
 lr_hyperopt <- function(data) {
+  if(file.exists("out/lr.rds")){
+    model <- readRDS("out/lr.rds")
+    
+    return(model)
+  }
+  
   folds <- vfold_cv(data, v = 5, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
@@ -34,6 +41,8 @@ lr_hyperopt <- function(data) {
   
   print(show_best(lr_tune, "roc_auc")$mean[1])
   print(tuned_model)
+  
+  saveRDS(tuned_model, "out/lr.rds")
   
   return(tuned_model)
 }
