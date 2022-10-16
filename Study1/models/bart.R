@@ -5,6 +5,12 @@ all_cores <- parallel::detectCores(logical = FALSE)
 registerDoParallel(cores = all_cores)
 
 bart_hyperopt <- function(data) {
+  if(file.exists("out/bart.rds")){
+    model <- readRDS("out/bart.rds")
+    
+    return(model)
+  }
+  
   set.seed(2022)
   
   folds <- vfold_cv(data, v = 5, strata = ofi)
@@ -36,6 +42,8 @@ bart_hyperopt <- function(data) {
   
   print(show_best(bart_tune, "roc_auc")$mean[1])
   print(tuned_model)
+  
+  saveRDS(tuned_model, "out/bart.rds")
   
   return(tuned_model)
 }

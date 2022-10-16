@@ -22,7 +22,7 @@ packages <- c("rofi","Gmisc", "stringr", "dplyr", "labelled", "DBI",
               "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret",
               "treesnip", "tidymodels", "doParallel", "treesnip", "baguette", 
               "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
-              "kknn")
+              "kknn", "Rmisc")
 for (package in packages) library(package, character.only = TRUE)
 
 ## Load functions
@@ -37,98 +37,131 @@ datasets <- rofi::import_data()
 ## Merge data
 combined.datasets <- rofi::merge_data(datasets)
 
-## Create OFI collumn
+## Create OFI column
 combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
 
-####################
-### Cleaning data ##
-####################
-### Clean audit filters
 dataset.clean.af <- clean_audit_filters(combined.datasets)
 
 ## Separate and store cases without known outcome
-#missing.outcome <- is.na(dataset.clean.af$ofi)
-#n.missing.outcome <- sum(missing.outcome)
-#dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
-
-dataset.clean.af$ofi[is.na(dataset.clean.af$ofi)] <- "No"
+missing.outcome <- is.na(dataset.clean.af$ofi)
+n.missing.outcome <- sum(missing.outcome)
+dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
 
 
 ## Fix formating and remove wrong values like 999
 clean.dataset <- clean_all_predictors(dataset.clean.af)
 
-#### Remove columns not used for prediction - NEED TO EXPAND
-## Keep some ID variabel? Removes time and date, korrekt?
-smaller.data <- remove_columns(clean.dataset)
-
-## Imputation Need consensus on how we imputate. 
-imputed.dataset <- imputation(smaller.data)
-### Remove predicts without variance (imputed without missing data)
-variance.data <- Filter(function(x)(length(unique(x))>1), imputed.dataset)
-
-## Preprocess the data. Cant handle dates/times. from mikropml, have a better way?? 
-#is.POSIXct <- function(x) inherits(x, "POSIXct")
-#time.cols <- colnames(smaller.data %>% select_if(is.POSIXct))
-
-#test <-  smaller.data[ , -which(names(smaller.data) %in% time.cols)]
-
-preprocessed.data <- preprocess_data(variance.data)
-
-# Select wich models to run
-models <- c(
+# Select which models to run
+models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  #"cat" = cat_hyperopt,
-  #"dt" = dt_hyperopt,
-  #"knn" = knn_hyperopt,
-  #"lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt
-  #"rf" = rf_hyperopt,
-  #"svm" = svm_hyperopt,
-  #"xgb" = xgb_hyperopt
+  "cat" = cat_hyperopt,
+  "dt" = dt_hyperopt,
+  "knn" = knn_hyperopt,
+  "lgb" = lgb_hyperopt,
+  "lr" = lr_hyperopt,
+  "rf" = rf_hyperopt,
+  "svm" = svm_hyperopt,
+  "xgb" = xgb_hyperopt
 )
 
+models <- c()
+results <- list()
+n.resamples = 10
+pb <- progress::progress_bar$new(format = "HYPEROPTING :spin [:bar] :current/:total | :elapsedfull",
+                                 total = length(models.hyperopt), show_after=0) 
 
-results <- c()
-# Number of boots to run (the framework adds 1)
-n.boots = 9
+complete.preprocessed.data  <- clean.dataset %>% remove_columns() %>%
+  preprocess_data(verbose = TRUE)
 
-# Run hyperopt + bootstrapping for selected models
-message("RUNNING MODELS: ", paste(names(models), collapse = ', '))
-for (model.name in names(models)){
-  message("#---------------#")
-  message(sprintf("STARTING MODEL: %s", model.name))
+complete.preprocessed.data.summary <- summary(complete.preprocessed.data)
+complete.preprocessed.data <- bake(complete.preprocessed.data, new_data = NULL)
+
+for (model.name in names(models.hyperopt)){
+  pb$tick(0)
+
+  hyperopt <- models.hyperopt[model.name][[1]]
   
-  model.hyperopt <- models[model.name][[1]]
   
-  message("HYPEROPTING MODEL")
-  model <- model.hyperopt(preprocessed.data)
+  model <- hyperopt(complete.preprocessed.data)
   
-  message("BOOTSTRAPPING MODEL")
-  pb <- progress::progress_bar$new(format = paste(model.name, "[:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)", sep = " | "),
-                                   total = n.boots + 1) 
+  models[[model.name]] <- model
   
-  results[[ model.name  ]]  <- boot(data=preprocessed.data, statistic=bootstrap, 
-                                    R=n.boots, model=model, prog = pb)
-  
-  message(sprintf("DONE WITH MODEL: %s", model.name))
+  pb$tick()
 }
-message("#---------------#")
-message("DONE TESTING MODELS")
 
+pb <- progress::progress_bar$new(format = "RESAMPLING :spin [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
+                                 total = n.resamples, show_after=0) 
+for(i in 1:n.resamples){
+  pb$tick(0)
+  
+  sample <- sample(c(TRUE, FALSE), nrow(clean.dataset), replace=TRUE, prob=c(0.7,0.3))
+  
+  trained.preprocessor  <- clean.dataset[sample, ] %>% remove_columns() %>% preprocess_data()
+  
+  test.data <- clean.dataset[!sample, ] %>% remove_columns()
+  
+  train.data <- trained.preprocessor %>% bake(new_data = NULL)
+  test.data <- trained.preprocessor %>% bake(new_data = test.data)
+  test.target <- test.data$ofi
+  test.data <- subset(test.data, select = -ofi)
+  
+  resample.results <- list("target" = test.target)
+  
+  for (model.name in names(models)){
+    model <- models[model.name][[1]]
+    
+    # Train model
+    model.fitted <- fit(model, ofi ~ ., data = train.data)
+    
+    # Get prediction probabilities for each test case
+    resample.results[[model.name]] <- predict(model.fitted, test.data, type = "prob") %>% pull(2)
+  }
+  
+  resample.results[["auditfilter"]] <- audit_filters_predict(clean.dataset[!sample, ])
+  
+  results <- append(results, list(resample.results))
+  
+  pb$tick()
+}
 
-## test data requires VK columns
-pb <- progress::progress_bar$new(format = "audit filters | [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
-                                 total = n.boots + 1) 
-results[[ "auditfilters" ]]  <- boot(data=clean.dataset, statistic=bootstrap, 
-                                     R=n.boots, model=audit_filters_predict, prog = pb, 
-                                     audit.filter=TRUE)
+saveRDS(results, file = sprintf("out/%s_results.rds", format(Sys.time(), "%y-%m-%d-%H-%M")))
 
+statistics <- c()
 
-#### Boot test
-#
-#results.boot3 <- boot(data=preprocessed.data, statistic=bootstrap,
-#                      R=100)
-#
-# Change index to access different performance meassures
-#results.ci <- boot.ci(results.boot3, index = 1, type = "norm")
-#
+for(resample in results){
+  target <- as.numeric(resample[["target"]])
+  model.names <-  names(resample)[-1]
+  
+  for(model.name in model.names){
+    test.probs <- resample[[model.name]]
+    
+    test.preds <- ROCR::prediction(test.probs, target)
+    
+    statistics[[model.name]][["auc"]] <- statistics[[model.name]][["auc"]] %>% 
+      append(ROCR::performance(test.preds, measure = "auc")@y.values[[1]][1])
+    
+    # This might be "cheating" since it calculates the optimal cut off value for highest accuracy.
+    statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
+      append(ROCR::performance(test.preds, measure = "acc")@y.values[[1]][1])
+    
+    # ICI recommends > 1000 observations
+    statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
+      append(gmish::ici(test.probs, target - 1))
+  }
+}
+
+for (model.name in names(statistics)){
+  message(model.name)
+  
+  message("AUC")
+  print(CI(statistics[[model.name]][["auc"]], ci=0.95))
+  message("")
+  
+  message("ACC")
+  print(CI(statistics[[model.name]][["acc"]], ci=0.95))
+  message("")
+  
+  message("ICI")
+  print(CI(statistics[[model.name]][["ici"]], ci=0.95))
+  message("\n")
+}

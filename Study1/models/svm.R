@@ -5,7 +5,11 @@ all_cores <- parallel::detectCores(logical = FALSE)
 registerDoParallel(cores = all_cores)
 
 svm_hyperopt <- function(data) {
-  set.seed(2022)
+  if(file.exists("out/svm.rds")){
+    model <- readRDS("out/svm.rds")
+    
+    return(model)
+  }  
   
   folds <- vfold_cv(data, v = 5, strata = ofi)
   
@@ -42,6 +46,8 @@ svm_hyperopt <- function(data) {
   
   print(show_best(svm_tune, "roc_auc")$mean[1])
   print(tuned_model)
+  
+  saveRDS(tuned_model, "out/svm.rds")
   
   return(tuned_model)
 }
