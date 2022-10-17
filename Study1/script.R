@@ -93,12 +93,12 @@ pb <- progress::progress_bar$new(format = "RESAMPLING :spin [:bar] :current/:tot
                                  total = n.resamples, show_after=0) 
 for(i in 1:n.resamples){
   pb$tick(0)
+  train.fraction <- 0.8
+  train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
   
-  sample <- sample(c(TRUE, FALSE), nrow(clean.dataset), replace=TRUE, prob=c(0.7,0.3))
+  trained.preprocessor  <- clean.dataset[train.sample, ] %>% remove_columns() %>% preprocess_data()
   
-  trained.preprocessor  <- clean.dataset[sample, ] %>% remove_columns() %>% preprocess_data()
-  
-  test.data <- clean.dataset[!sample, ] %>% remove_columns()
+  test.data <- clean.dataset[-train.sample, ] %>% remove_columns()
   
   train.data <- trained.preprocessor %>% bake(new_data = NULL)
   test.data <- trained.preprocessor %>% bake(new_data = test.data)
@@ -117,7 +117,7 @@ for(i in 1:n.resamples){
     resample.results[[model.name]] <- predict(model.fitted, test.data, type = "prob") %>% pull(2)
   }
   
-  resample.results[["auditfilter"]] <- audit_filters_predict(clean.dataset[!sample, ])
+  resample.results[["auditfilter"]] <- audit_filters_predict(clean.dataset[-train.sample, ])
   
   results <- append(results, list(resample.results))
   
