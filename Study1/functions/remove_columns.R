@@ -8,6 +8,7 @@ data <- data[,-grep("ICD_", colnames(data))]
 data <- data[,-grep("pac_", colnames(data))]
 data <- data[,-grep("Fr", colnames(data))]
 data <- data[,-grep("Date", colnames(data))]
+data <- data[,-grep("rts", colnames(data))]
 # data <- data[,-grep("dt", colnames(data))] need these
 
 #### Columns not needed for prediction
@@ -52,6 +53,12 @@ data <- subset(data,
                            ,Problemomrade_.FMP
                            ,Gender
                            ,Kön
-                           ,Tr_Nivå))
+                           ,Tr_Nivå
+                           ,korrekt_triage
+                           ,ed_tta
+                           ,TraumaAlarmCriteria
+                           ,ed_be_art_NotDone
+                           ,ed_intubated
+                           ,pre_intubated))
 return(data)
 }
