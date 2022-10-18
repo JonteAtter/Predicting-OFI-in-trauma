@@ -51,6 +51,9 @@ dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
 ## Fix formating and remove wrong values like 999
 clean.dataset <- clean_all_predictors(dataset.clean.af)
 
+## Integrate RTS 
+clean.dataset <- combine_rts(clean.dataset)
+
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
@@ -71,7 +74,7 @@ pb <- progress::progress_bar$new(format = "HYPEROPTING :spin [:bar] :current/:to
                                  total = length(models.hyperopt), show_after=0) 
 
 complete.preprocessed.data  <- clean.dataset %>% remove_columns() %>%
-  preprocess_data(verbose = TRUE)
+preprocess_data(verbose = TRUE)
 
 complete.preprocessed.data.summary <- summary(complete.preprocessed.data)
 complete.preprocessed.data <- bake(complete.preprocessed.data, new_data = NULL)
@@ -165,3 +168,5 @@ for (model.name in names(statistics)){
   print(CI(statistics[[model.name]][["ici"]], ci=0.95))
   message("\n")
 }
+
+saveRDS(statistics, file = sprintf("out/%s_statistics.rds", format(Sys.time(), "%y-%m-%d-%H-%M")))
