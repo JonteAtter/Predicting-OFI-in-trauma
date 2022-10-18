@@ -5,4 +5,6 @@ source("functions/clean_predictor.R")
 source("functions/clean_audit_filters.R")
 source("functions/remove_columns.R")
 source("functions/clean_all_predictors.R")
+source("functions/format_table1.R")
+source("functions/combine_rts.R")
 
