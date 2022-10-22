@@ -57,14 +57,6 @@ clean.dataset <- combine_rts(clean.dataset)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  "cat" = cat_hyperopt,
-  "dt" = dt_hyperopt,
-  "knn" = knn_hyperopt,
-  "lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt,
-  "xgb" = xgb_hyperopt
 )
 
 models <- c()
