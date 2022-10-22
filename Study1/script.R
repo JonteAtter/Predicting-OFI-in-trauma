@@ -22,7 +22,7 @@ packages <- c("rofi","Gmisc", "stringr", "dplyr", "labelled", "DBI",
               "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret",
               "treesnip", "tidymodels", "doParallel", "treesnip", "baguette", 
               "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
-              "kknn", "Rmisc")
+              "kknn", "Rmisc", "smotefamily")
 for (package in packages) library(package, character.only = TRUE)
 
 ## Load functions
@@ -30,6 +30,9 @@ source("functions/functions.R")
 
 # Load models
 source("models/models.R")
+
+# Make sure out dir exists
+dir.create("out", showWarnings = FALSE)
 
 ## Import data
 datasets <- rofi::import_data()
@@ -67,17 +70,47 @@ models.hyperopt <- c(
   #"xgb" = xgb_hyperopt
 )
 
+# Settings
+data.fraction = 1 # Used for debugging
+n.resamples = 10
+train.fraction <- 0.8
+
+# Create run out dir
+run.time <- format(Sys.time(), "%y-%m-%d-%H-%M")
+run.out.dir <- sprintf("out/%s", run.time)
+dir.create(run.out.dir)
+
 models <- c()
 results <- list()
-n.resamples = 10
+
+# Use a fraction of the dataset for debugging fast
+clean.dataset <- clean.dataset[sample(nrow(clean.dataset), floor(nrow(clean.dataset) * data.fraction)),]
+
+# First boot
+train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
+
+trained.preprocessor  <- clean.dataset[train.sample, ] %>% remove_columns() %>% preprocess_data()
+
+train.data <- clean.dataset[train.sample, ] %>% remove_columns()
+test.data <- clean.dataset[-train.sample, ] %>% remove_columns()
+
+saveRDS(train.data, file = sprintf("%s/train_data.rds", run.out.dir))
+saveRDS(test.data, file = sprintf("%s/test_data.rds", run.out.dir))
+
+train.data <- trained.preprocessor %>% bake(new_data = NULL)
+test.data <- trained.preprocessor %>% bake(new_data = test.data)
+
+test.target <- test.data$ofi
+test.data <- subset(test.data, select = -ofi)
+
+train.data <- smotefamily::ADAS(subset(train.data, select = -ofi), train.data$ofi)$data
+colnames(train.data)[colnames(train.data) == "class"] ="ofi"
+train.data$ofi <- as.factor(train.data$ofi)
+
+resample.results <- list("target" = test.target)
+
 pb <- progress::progress_bar$new(format = "HYPEROPTING :spin [:bar] :current/:total | :elapsedfull",
                                  total = length(models.hyperopt), show_after=0) 
-
-complete.preprocessed.data  <- clean.dataset %>% remove_columns() %>%
-preprocess_data(verbose = TRUE)
-
-complete.preprocessed.data.summary <- summary(complete.preprocessed.data)
-complete.preprocessed.data <- bake(complete.preprocessed.data, new_data = NULL)
 
 for (model.name in names(models.hyperopt)){
   pb$tick(0)
@@ -85,18 +118,27 @@ for (model.name in names(models.hyperopt)){
   hyperopt <- models.hyperopt[model.name][[1]]
   
   
-  model <- hyperopt(complete.preprocessed.data)
+  model <- hyperopt(train.data)
+  
+  model.fitted <- fit(model, ofi ~ ., data = train.data)
+  
+  # Get prediction probabilities for each test case
+  resample.results[[model.name]] <- predict(model.fitted, test.data, type = "prob") %>% pull(2)
   
   models[[model.name]] <- model
   
   pb$tick()
 }
 
+resample.results[["auditfilter"]] <- audit_filters_predict(clean.dataset[-train.sample, ])
+
+results <- append(results, list(resample.results))
+
+
 pb <- progress::progress_bar$new(format = "RESAMPLING :spin [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
                                  total = n.resamples, show_after=0) 
 for(i in 1:n.resamples){
   pb$tick(0)
-  train.fraction <- 0.8
   train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
   
   trained.preprocessor  <- clean.dataset[train.sample, ] %>% remove_columns() %>% preprocess_data()
@@ -105,8 +147,13 @@ for(i in 1:n.resamples){
   
   train.data <- trained.preprocessor %>% bake(new_data = NULL)
   test.data <- trained.preprocessor %>% bake(new_data = test.data)
+  
   test.target <- test.data$ofi
   test.data <- subset(test.data, select = -ofi)
+  
+  train.data <- smotefamily::ADAS(subset(train.data, select = -ofi), train.data$ofi)$data
+  colnames(train.data)[colnames(train.data) == "class"] ="ofi"
+  train.data$ofi <- as.factor(train.data$ofi)
   
   resample.results <- list("target" = test.target)
   
@@ -127,7 +174,7 @@ for(i in 1:n.resamples){
   pb$tick()
 }
 
-saveRDS(results, file = sprintf("out/%s_results.rds", format(Sys.time(), "%y-%m-%d-%H-%M")))
+saveRDS(results, file = sprintf("%s/results.rds", run.out.dir))
 
 statistics <- c()
 
@@ -142,10 +189,19 @@ for(resample in results){
     
     statistics[[model.name]][["auc"]] <- statistics[[model.name]][["auc"]] %>% 
       append(ROCR::performance(test.preds, measure = "auc")@y.values[[1]][1])
+
+    statistics[[model.name]][["aucpr"]] <- statistics[[model.name]][["aucpr"]] %>% 
+      append(ROCR::performance(test.preds, measure = "aucpr")@y.values[[1]][1])
     
-    # This might be "cheating" since it calculates the optimal cut off value for highest accuracy.
+    statistics[[model.name]][["f"]] <- statistics[[model.name]][["f"]] %>% 
+      append(ROCR::performance(test.preds, measure = "f")@y.values[[1]][1])
+    
+    # Get predicted classes using 0.5 as cut off
+    test.pred.classes <- as.numeric(test.probs >= 0.5) + 1
+    
+    # Calculate accuracy using said cut off
     statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
-      append(ROCR::performance(test.preds, measure = "acc")@y.values[[1]][1])
+      append(sum(test.pred.classes == target, na.rm = TRUE) / length(test.probs))
     
     # ICI recommends > 1000 observations
     statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
@@ -164,9 +220,16 @@ for (model.name in names(statistics)){
   print(CI(statistics[[model.name]][["acc"]], ci=0.95))
   message("")
   
+  message("AUCPR")
+  print(CI(statistics[[model.name]][["aucpr"]], ci=0.95))
+  message("")
+  
+  message("f")
+  print(CI(statistics[[model.name]][["f"]], ci=0.95))
+  message("")
+  
   message("ICI")
   print(CI(statistics[[model.name]][["ici"]], ci=0.95))
   message("\n")
 }
 
-saveRDS(statistics, file = sprintf("out/%s_statistics.rds", format(Sys.time(), "%y-%m-%d-%H-%M")))
