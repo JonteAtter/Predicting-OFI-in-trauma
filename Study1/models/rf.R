@@ -13,13 +13,14 @@ rf_hyperopt <- function(data) {
   
   folds <- vfold_cv(data, v = 5, strata = ofi)
   
-  rec_obj <- recipe(ofi ~ ., data = data)
+  rec_obj <- recipe(ofi ~ ., data = data, importance = "impurity")
   
   rf_model <-
-    rand_forest(mtry = tune(),
+    rand_forest(mtry = tune(),     ### lägg till importance
                 trees = tune(),
                 min_n = tune()) %>%
-    set_mode("classification")
+    set_mode("classification") %>% 
+    set_engine("ranger",importance = "impurity")
   
   rf_grid <- grid_max_entropy(mtry(range = c(4, 9)),
                               trees(),
