@@ -4,9 +4,14 @@
 #
 # TODO:something beside summary() to check correct formats?
 # Fix dates?
-
+# Integrate RTS?
+# Not done columns?
+#data <- dataset.clean.af
 clean_all_predictors <- function(data) {
 
+  data <- as.data.frame(data)
+  data$intub <- with(data, ifelse(`pre_intubated` == 1 & is.na(data$pre_intubated) == FALSE, 3, `ed_intubated`))  
+  
 ###cont
 cont.var<- c("pt_age_yrs","pre_gcs_sum","pre_gcs_motor","ed_gcs_sum","ed_gcs_motor",
              "pre_sbp_value","ed_sbp_value","pre_rr_value","ed_rr_value","ed_be_art",
@@ -14,7 +19,7 @@ cont.var<- c("pt_age_yrs","pre_gcs_sum","pre_gcs_motor","ed_gcs_sum","ed_gcs_mot
              "NumberOfActions","NumberOfInjuries","iva_dagar_n","iva_vardtillfallen_n")  
 
 ###cat 
-cat.var <- c("Gender","pt_Gender","ed_be_art_NotDone","hosp_dischg_dest","res_survival",           
+cat.var <- c("intub","Gender","pt_Gender","ed_be_art_NotDone","dt_ed_norm_be","hosp_dischg_dest","res_survival",           
              "inj_dominant","inj_mechanism","inj_intention","pt_asa_preinjury","pre_card_arrest",
              "pre_sbp_rtscat","ed_sbp_rtscat","pre_rr_rtscat","ed_rr_rtscat","ed_inr_NotDone",
              "host_vent_days_NotDone","pre_provided","pre_intubated","pre_intub_type",
@@ -57,6 +62,8 @@ formated.data$ed_be_art <- as.numeric(formated.data$ed_inr)
 formated.data$NumberOfActions <- as.numeric(formated.data$NumberOfActions)
 formated.data$NumberOfInjuries <- as.numeric(formated.data$NumberOfInjuries)
 
+formated.data$dt_ed_norm_be <- as.numeric(formated.data$dt_ed_norm_be)
+test <- as.numeric(dataset.clean.af$dt_ed_norm_be)
 ###### I Used summary to check each category, to my knowledge they follow the swetrau-manual
 ###### Need to add some better screening tool
 
