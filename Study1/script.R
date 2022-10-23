@@ -25,6 +25,7 @@ packages <- c("rofi","Gmisc", "stringr", "dplyr", "labelled", "DBI",
               "kknn", "Rmisc", "smotefamily")
 for (package in packages) library(package, character.only = TRUE)
 
+setwd("~/R/dynamic-identification-ofi/Study1")
 ## Load functions
 source("functions/functions.R")
 
@@ -60,14 +61,14 @@ clean.dataset <- combine_rts(clean.dataset)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  #"cat" = cat_hyperopt,
-  #"dt" = dt_hyperopt,
-  #"knn" = knn_hyperopt,
-  #"lgb" = lgb_hyperopt,
-  #"lr" = lr_hyperopt,
-  "rf" = rf_hyperopt
-  #"svm" = svm_hyperopt,
-  #"xgb" = xgb_hyperopt
+  "cat" = cat_hyperopt,
+  "dt" = dt_hyperopt,
+  "knn" = knn_hyperopt,
+  "lgb" = lgb_hyperopt,
+  "lr" = lr_hyperopt,
+  "rf" = rf_hyperopt,
+  "svm" = svm_hyperopt,
+  "xgb" = xgb_hyperopt
 )
 
 # Settings

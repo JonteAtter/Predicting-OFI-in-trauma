@@ -1,53 +1,104 @@
-#
-library(vip)
+#bart <- readRDS("out/bart.old.rds")
 
-cat <- readRDS("~/R/dynamic-identification-ofi/Study1/out/cat.rds")
-lr <- readRDS("~/R/dynamic-identification-ofi/Study1/out/lr.rds")
-rf <- readRDS("~/R/dynamic-identification-ofi/Study1/out/rf.rds")
-xgb <- readRDS("~/R/dynamic-identification-ofi/Study1/out/xgb.rds")
-svm <- readRDS("~/R/dynamic-identification-ofi/Study1/out/svm.rds")
-lgb <- readRDS("~/R/dynamic-identification-ofi/Study1/out/lgb.rds")
-knn <- readRDS("~/R/dynamic-identification-ofi/Study1/out/knn.rds")
+### Laddar modeller
+rf <- readRDS("out/rf.old2.rds")
+cat<- readRDS("out/cat.old.rds")
+dt<- readRDS("out/dt.old.rds")
+knn<- readRDS("out/knn.old.rds") # ej klart
+lgb<- readRDS("out/lgb.old.rds")
+lr<- readRDS("out/lr.old.rds")
+svm<- readRDS("out/rf.old.rds") # Ej klart
+xgb<- readRDS("out/xgb.old.rds") 
 
+# VI kräver ofta fit
+rf.fit  <- fit(rf, ofi ~ ., data = train.data)
+cat.fit <- fit(cat, ofi ~ ., data = train.data)
+dt.fit <- fit(dt, ofi ~ ., data = train.data)
+knn.fit <- fit(knn, ofi ~ ., data = train.data)
+lgb.fit <- fit(lgb, ofi ~ ., data = train.data)
+lr.fit <- fit(lr, ofi ~ ., data = train.data)
+svm.fit <- fit(svm, ofi ~ ., data = train.data)
+xgb.fit <- fit(xgb, ofi ~ ., data = train.data)
 
-lr.fitted <- fit(lr, ofi ~ ., data = train.data)
-cat.fitted <- fit(cat, ofi ~ ., data = train.data)
-rf.fitted <- fit(rf, ofi ~ ., data = train.data)
-xgb.fitted <- fit(xgb, ofi ~ ., data = train.data)
-svm.fitted <- fit(svm, ofi ~ ., data = train.data)
-lgb.fitted <- fit(lgb, ofi ~ ., data = train.data)
-knn.fitted <- fit(knn, ofi ~ ., data = train.data)
+## RF
+##### Kräver att du hyperopimerar med: set_mode("classification") %>% 
+##                                     set_engine("ranger",importance = "impurity")
 
-
-## LR
-lr.vi <- vi(lr.fitted)
-sum(lr.vi$Importance) ## 53? Jag fattar faktiskt inte "sign" pos/neg för glmnet modeller?
-
-# cat
-cat.vi <- catboost.get_feature_importance(extract_fit_engine(cat.fitted), 
+library(vip) 
+vi.rf <- rf.fit[["fit"]][["variable.importance"]]
+vi.rf <- vi(rf.fit, scale = TRUE)
+vi.rf$Importance <- vi.rf$Importance * 100/1882.342
+vi.rf$rf <- vi.rf$Importance
+vi.rf$Importance <- NULL
+## CAT
+vi.cat <- catboost.get_feature_importance(extract_fit_engine(cat.fit), 
                                           pool = NULL, 
                                           type = 'FeatureImportance',
                                           thread_count = -1)
-## RF
-#install.packages("randomForestExplainer")
-#library(randomForestExplainer)
-# rf.vi<-measure_importance(rf.fitted$fit).  
 
-# Kräver att vi tränar om modellern, där man i ranger (kan ej tydligt hitta?) sätter importance='impurity' 
 
-#lgb
+## lgb
 
-lgb.vi <- lgb.importance(extract_fit_engine(lgb.fitted), percentage =TRUE)
-lgb.vi$Gain <- lgb.vi$Gain * 100 
-#### Osäker på om det är gain som representeras VI? Och kommer dessutom ut som procent varpå * 100.
+vi.lgb <- lgb.importance(extract_fit_engine(lgb.fit), percentage =TRUE)
+vi.lgb$Gain <- vi.lgb$Gain * 100
+vi.lgb$lgb <- vi.lgb$Gain
+vi.lgb$Gain <- NULL
 
-## xgb
+## DT
 
-xgb.vi <- vip::vi(xgb.fitted)
-xgb.vi$Importance <- xgb.vi$Importance * 100
-sum(xgb.vi$Importance)
+vi.dt <- dt.fit[["fit"]][["imp"]]
+vi.dt$value <- vi.dt$value *100/1539.956
 
-## KNN
-# Inte möjlit att räkna var imp med knn?
-knn.vi <- catboost.get_feature_importance(extract_fit_engine(knn.fitted), percentage =TRUE)
-knn.vi <- vip::vi(knn.fitted)
+sum(vi.dt$value)
+vi.dt$dt <- vi.dt$value
+vi.dt$value <- NULL
+vi.dt$Variable <- vi.dt$term
+vi.dt <- vi.dt[,c("Variable","dt")] #### Bara 87 variabler av någon anledning?
+## XGB
+
+vi.xgb  <- xgb.fit %>% vi(scale=FALSE)
+vi.xgb$Importance <- vi.xgb$Importance *100
+vi.xgb$xgb <- vi.xgb$Importance
+vi.xgb$Importance <- NULL
+
+## LR
+
+vi.lr <- vi(lr.fit) ## Pos/neg värden där jag inte är 100% hur det ska tolkas
+vi.lr$Importance <- vi.lr$Importance*100/72.95979
+vi.lr$lr <- vi.lr$Importance
+vi.lr$Importance <- NULL
+
+##### Bygg ihop till dataframe för smidigare plot
+t.rf.vi <- as.data.frame(vi.rf)
+t.xgb.vi <- as.data.frame(vi.xgb)
+t.lgb.vi <- as.data.frame(vi.lgb[,c("Feature","lgb")])
+t.dt.vi <- as.data.frame(vi.dt)
+t.lr.vi <- as.data.frame(vi.lr)
+t.lr.vi$Sign <- NULL
+
+t.lgb.vi$Variable <- t.lgb.vi$Feature
+t.lgb.vi$Feature <- NULL
+t.cat.vi <- as.data.frame(vi.cat)
+t.cat.vi$Variable <- NA
+t.cat.vi$Variable <- rownames(vi.cat)
+
+varimptable <- merge(t.rf.vi,t.xgb.vi,by="Variable")
+
+varimptable2 <- merge(varimptable,t.lgb.vi,by="Variable")
+
+varimptable3 <- merge(varimptable2,t.cat.vi,by="Variable")
+varimptable3$cat<-varimptable3$V1
+varimptable3$V1 <- NULL
+varimptable4 <- merge(varimptable3,t.dt.vi,by="Variable",all = TRUE)
+varimptable5 <- merge(varimptable4,t.lr.vi,by="Variable")
+
+
+
+?merge
+require(ggplot2)
+var.imp.table <- ggplot(varimptable3, aes(x=Gain, y=Variable)) + geom_point()
+
+var.imp.plot <-plot(x = as.numeric(varimptable3$Gain), y = varimptable3$Variable, xlab = "Age",
+     ylab = "Circumference", main = "Age VS Circumference",
+     col.lab = "darkgreen", col.main = "darkgreen",
+     col.axis = "darkgreen")
