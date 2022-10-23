@@ -2,30 +2,23 @@ library(tidymodels)
 library(doParallel)
 library(tidypredict)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-lr_hyperopt <- function(data) {
+lr_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/lr.rds")){
     model <- readRDS("out/lr.rds")
     
     return(model)
   }
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
-  
-  rec_obj <- recipe(ofi ~ ., data = data)
-  
   lr_model <-
     logistic_reg(penalty = tune(), mixture = 1) %>%
     set_engine("glmnet")
   
   lr_grid <- grid_max_entropy(penalty(),
-                              size = 30)
+                              size = grid.size)
   
   lr_workflow <- workflow() %>%
-    add_recipe(rec_obj) %>%
-    add_model(lr_model)
+    add_model(lr_model) %>%
+    add_formula(ofi ~ .)
   
   lr_tune <- lr_workflow %>%
     tune_grid(
@@ -38,9 +31,6 @@ lr_hyperopt <- function(data) {
   tuned_model <-
     lr_model %>%
     finalize_model(select_best(lr_tune))
-  
-  print(show_best(lr_tune, "roc_auc")$mean[1])
-  print(tuned_model)
   
   saveRDS(tuned_model, "out/lr.rds")
   

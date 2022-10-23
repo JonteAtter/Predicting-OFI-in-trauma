@@ -2,19 +2,12 @@ library(tidymodels)
 library(doParallel)
 library(baguette)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-dt_hyperopt <- function(data) {
+dt_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/dt.rds")){
     model <- readRDS("out/dt.rds")
     
     return(model)
   }  
-  
-  folds <- vfold_cv(data, v = 5, strata = ofi)
-  
-  rec_obj <- recipe(ofi ~ ., data = data)
   
   dt_model <-
     bag_tree(
@@ -29,11 +22,11 @@ dt_hyperopt <- function(data) {
   dt_grid <- grid_max_entropy(cost_complexity(),
                               tree_depth(),
                               min_n(),
-                              size = 30)
+                              size = grid.size)
   
   dt_workflow <- workflow() %>%
-    add_recipe(rec_obj) %>%
-    add_model(dt_model)
+    add_model(dt_model) %>%
+    add_formula(ofi ~ .)
   
   dt_tune <- dt_workflow %>%
     tune_grid(
@@ -46,9 +39,6 @@ dt_hyperopt <- function(data) {
   tuned_model <-
     dt_model %>%
     finalize_model(select_best(dt_tune))
-  
-  print(show_best(dt_tune, "roc_auc")$mean[1])
-  print(tuned_model)
   
   saveRDS(tuned_model, "out/dt.rds")
   
