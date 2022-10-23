@@ -66,8 +66,8 @@ models.hyperopt <- c(
   "lgb" = lgb_hyperopt,
   "lr" = lr_hyperopt,
   "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt,
-  "xgb" = xgb_hyperopt
+  "svm" = svm_hyperopt
+  #"xgb" = xgb_hyperopt
 )
 
 # Settings
@@ -105,12 +105,32 @@ test.data <- trained.preprocessor %>% bake(new_data = test.data)
 test.target <- test.data$ofi
 test.data <- subset(test.data, select = -ofi)
 
+hyperopt.folds <- vfold_cv(train.data, v = hyperopt.n.folds, strata = ofi)
+
+# Upsample training data in each fold to avoid data leakage
+for(i in 1:length(hyperopt.folds$splits)){
+  fold.train.data <- as.data.frame(hyperopt.folds$splits[[i]])
+  fold.data <- hyperopt.folds$splits[[i]]$data
+  
+  fold.length <- nrow(fold.data)
+
+  fold.syn.data <- smotefamily::ADAS(subset(fold.train.data, select = -ofi), fold.train.data$ofi)$syn_data
+  colnames(fold.syn.data)[colnames(fold.syn.data) == "class"] ="ofi"
+  fold.syn.data$ofi <- as.factor(fold.syn.data$ofi)
+  
+  hyperopt.folds$splits[[i]]$data <- rbind(fold.data, fold.syn.data)
+  
+  syn.data.idxs <- fold.length:nrow(hyperopt.folds$splits[[i]]$data)
+  
+  hyperopt.folds$splits[[i]]$in_id <- append(hyperopt.folds$splits[[i]]$in_id, syn.data.idxs)
+}
+
+# Upsample train data for fitting
 train.data <- smotefamily::ADAS(subset(train.data, select = -ofi), train.data$ofi)$data
 colnames(train.data)[colnames(train.data) == "class"] ="ofi"
 train.data$ofi <- as.factor(train.data$ofi)
 
 resample.results <- list("target" = test.target)
-
 pb <- progress::progress_bar$new(format = "HYPEROPTING :spin [:bar] :current/:total | :elapsedfull",
                                  total = length(models.hyperopt), show_after=0) 
 
@@ -119,8 +139,7 @@ for (model.name in names(models.hyperopt)){
 
   hyperopt <- models.hyperopt[model.name][[1]]
   
-  
-  model <- hyperopt(train.data, grid.size = hyperopt.grid.size, n.folds = hyperopt.n.folds)
+  model <- hyperopt(hyperopt.folds, grid.size = hyperopt.grid.size)
   
   model.fitted <- fit(model, ofi ~ ., data = train.data)
   
@@ -191,12 +210,6 @@ for(resample in results){
     
     statistics[[model.name]][["auc"]] <- statistics[[model.name]][["auc"]] %>% 
       append(ROCR::performance(test.preds, measure = "auc")@y.values[[1]][1])
-
-    statistics[[model.name]][["aucpr"]] <- statistics[[model.name]][["aucpr"]] %>% 
-      append(ROCR::performance(test.preds, measure = "aucpr")@y.values[[1]][1])
-    
-    statistics[[model.name]][["f"]] <- statistics[[model.name]][["f"]] %>% 
-      append(ROCR::performance(test.preds, measure = "f")@y.values[[1]][1])
     
     # Get predicted classes using 0.5 as cut off
     test.pred.classes <- as.numeric(test.probs >= 0.5) + 1
@@ -205,7 +218,6 @@ for(resample in results){
     statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
       append(sum(test.pred.classes == target, na.rm = TRUE) / length(test.probs))
     
-    # ICI recommends > 1000 observations
     statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
       append(gmish::ici(test.probs, target - 1))
   }
@@ -220,14 +232,6 @@ for (model.name in names(statistics)){
   
   message("ACC")
   print(CI(statistics[[model.name]][["acc"]], ci=0.95))
-  message("")
-  
-  message("AUCPR")
-  print(CI(statistics[[model.name]][["aucpr"]], ci=0.95))
-  message("")
-  
-  message("f")
-  print(CI(statistics[[model.name]][["f"]], ci=0.95))
   message("")
   
   message("ICI")

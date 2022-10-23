@@ -1,14 +1,12 @@
 library(tidymodels)
 library(doParallel)
 
-xgb_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
+xgb_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/xgb.rds")){
     model <- readRDS("out/xgb.rds")
     
     return(model)
   }  
-  
-  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -31,14 +29,15 @@ xgb_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
     min_n(),
     loss_reduction(),
     sample_size = sample_prop(),
-    finalize(mtry(), data),
+    finalize(mtry(), hyperopt.folds$splits[[1]]$data),
     learn_rate(),
     size = grid.size
   )
   
   xgb_workflow <- workflow() %>%
-    add_recipe(rec_obj) %>%
-    add_model(xgb_model)
+    add_model(xgb_model) %>%
+    add_formula(ofi ~ .)
+  
   
   xgb_tune <- xgb_workflow %>%
     tune_grid(
@@ -51,9 +50,6 @@ xgb_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   tuned_model <-
     xgb_model %>%
     finalize_model(select_best(xgb_tune))
-  
-  print(show_best(xgb_tune, "roc_auc")$mean[1])
-  print(tuned_model)
   
   saveRDS(tuned_model, "out/xgb.rds")
   

@@ -1,18 +1,13 @@
 library(tidymodels)
 library(doParallel)
 
-svm_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
+svm_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/svm.rds")){
     model <- readRDS("out/svm.rds")
     
     return(model)
   }  
   
-  folds <- vfold_cv(data, v = n.folds, strata = ofi)
-  
-  rec_obj <- recipe(ofi ~ ., data = data)
-  
-  # svm_linear
   svm_model <-
     svm_poly(cost = tune(),
              degree= tune(),
@@ -26,8 +21,9 @@ svm_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
                                size = grid.size)
   
   svm_workflow <- workflow() %>%
-    add_recipe(rec_obj) %>%
-    add_model(svm_model)
+    add_model(svm_model) %>%
+    add_formula(ofi ~ .)
+  
   
   svm_tune <- svm_workflow %>%
     tune_grid(
@@ -40,9 +36,6 @@ svm_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   tuned_model <-
     svm_model %>%
     finalize_model(select_best(svm_tune))
-  
-  print(show_best(svm_tune, "roc_auc")$mean[1])
-  print(tuned_model)
   
   saveRDS(tuned_model, "out/svm.rds")
   

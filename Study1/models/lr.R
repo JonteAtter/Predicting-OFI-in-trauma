@@ -2,16 +2,12 @@ library(tidymodels)
 library(doParallel)
 library(tidypredict)
 
-lr_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
+lr_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/lr.rds")){
     model <- readRDS("out/lr.rds")
     
     return(model)
   }
-  
-  folds <- vfold_cv(data, v = n.folds, strata = ofi)
-  
-  rec_obj <- recipe(ofi ~ ., data = data)
   
   lr_model <-
     logistic_reg(penalty = tune(), mixture = 1) %>%
@@ -21,8 +17,8 @@ lr_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
                               size = grid.size)
   
   lr_workflow <- workflow() %>%
-    add_recipe(rec_obj) %>%
-    add_model(lr_model)
+    add_model(lr_model) %>%
+    add_formula(ofi ~ .)
   
   lr_tune <- lr_workflow %>%
     tune_grid(
@@ -35,9 +31,6 @@ lr_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   tuned_model <-
     lr_model %>%
     finalize_model(select_best(lr_tune))
-  
-  print(show_best(lr_tune, "roc_auc")$mean[1])
-  print(tuned_model)
   
   saveRDS(tuned_model, "out/lr.rds")
   
