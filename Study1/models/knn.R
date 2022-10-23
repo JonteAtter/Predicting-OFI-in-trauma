@@ -1,17 +1,14 @@
 library(tidymodels)
 library(doParallel)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-knn_hyperopt <- function(data) {
+knn_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   if(file.exists("out/knn.rds")){
     model <- readRDS("out/knn.rds")
     
     return(model)
   }  
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
+  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -26,7 +23,7 @@ knn_hyperopt <- function(data) {
   knn_grid <- grid_max_entropy(neighbors(),
                                weight_func(),
                                dist_power(),
-                               size = 30)
+                               size = grid.size)
   
   knn_workflow <- workflow() %>%
     add_recipe(rec_obj) %>%

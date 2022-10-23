@@ -2,17 +2,14 @@ library(tidymodels)
 library(doParallel)
 library(tidypredict)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-lr_hyperopt <- function(data) {
+lr_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   if(file.exists("out/lr.rds")){
     model <- readRDS("out/lr.rds")
     
     return(model)
   }
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
+  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -21,7 +18,7 @@ lr_hyperopt <- function(data) {
     set_engine("glmnet")
   
   lr_grid <- grid_max_entropy(penalty(),
-                              size = 30)
+                              size = grid.size)
   
   lr_workflow <- workflow() %>%
     add_recipe(rec_obj) %>%

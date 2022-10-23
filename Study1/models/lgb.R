@@ -2,17 +2,14 @@ library(tidymodels)
 library(treesnip)
 library(doParallel)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-lgb_hyperopt <- function(data) {
+lgb_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   if(file.exists("out/lgb.rds")){
     model <- readRDS("out/lgb.rds")
     
     return(model)
   }    
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
+  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -37,7 +34,7 @@ lgb_hyperopt <- function(data) {
     #sample_size = sample_prop(c(0.4, 0.9)),
     finalize(mtry(), data),
     learn_rate(),
-    size = 30
+    size = grid.size
   )
   
   lgb_workflow <- workflow() %>%

@@ -1,17 +1,14 @@
 library(tidymodels)
 library(doParallel)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-svm_hyperopt <- function(data) {
+svm_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   if(file.exists("out/svm.rds")){
     model <- readRDS("out/svm.rds")
     
     return(model)
   }  
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
+  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -26,7 +23,7 @@ svm_hyperopt <- function(data) {
   svm_grid <- grid_max_entropy(cost(),
                                degree(),
                                scale_factor(),
-                               size = 30)
+                               size = grid.size)
   
   svm_workflow <- workflow() %>%
     add_recipe(rec_obj) %>%

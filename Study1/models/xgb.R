@@ -1,17 +1,14 @@
 library(tidymodels)
 library(doParallel)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-xgb_hyperopt <- function(data) {
+xgb_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   if(file.exists("out/xgb.rds")){
     model <- readRDS("out/xgb.rds")
     
     return(model)
   }  
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
+  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -36,7 +33,7 @@ xgb_hyperopt <- function(data) {
     sample_size = sample_prop(),
     finalize(mtry(), data),
     learn_rate(),
-    size = 30
+    size = grid.size
   )
   
   xgb_workflow <- workflow() %>%

@@ -60,7 +60,7 @@ clean.dataset <- combine_rts(clean.dataset)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  "cat" = cat_hyperopt,
+  #"cat" = cat_hyperopt,
   "dt" = dt_hyperopt,
   "knn" = knn_hyperopt,
   "lgb" = lgb_hyperopt,
@@ -72,6 +72,8 @@ models.hyperopt <- c(
 
 # Settings
 data.fraction = 1 # Used for debugging
+hyperopt.grid.size = 10
+hyperopt.n.folds = 3
 n.resamples = 10
 train.fraction <- 0.8
 
@@ -86,7 +88,7 @@ results <- list()
 # Use a fraction of the dataset for debugging fast
 clean.dataset <- clean.dataset[sample(nrow(clean.dataset), floor(nrow(clean.dataset) * data.fraction)),]
 
-# First boot
+# First resample
 train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
 
 trained.preprocessor  <- clean.dataset[train.sample, ] %>% remove_columns() %>% preprocess_data()
@@ -118,7 +120,7 @@ for (model.name in names(models.hyperopt)){
   hyperopt <- models.hyperopt[model.name][[1]]
   
   
-  model <- hyperopt(train.data)
+  model <- hyperopt(train.data, grid.size = hyperopt.grid.size, n.folds = hyperopt.n.folds)
   
   model.fitted <- fit(model, ofi ~ ., data = train.data)
   

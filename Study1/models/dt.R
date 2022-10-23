@@ -2,17 +2,14 @@ library(tidymodels)
 library(doParallel)
 library(baguette)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-dt_hyperopt <- function(data) {
+dt_hyperopt <- function(data, grid.size = 30, n.folds = 5) {
   if(file.exists("out/dt.rds")){
     model <- readRDS("out/dt.rds")
     
     return(model)
   }  
   
-  folds <- vfold_cv(data, v = 5, strata = ofi)
+  folds <- vfold_cv(data, v = n.folds, strata = ofi)
   
   rec_obj <- recipe(ofi ~ ., data = data)
   
@@ -29,7 +26,7 @@ dt_hyperopt <- function(data) {
   dt_grid <- grid_max_entropy(cost_complexity(),
                               tree_depth(),
                               min_n(),
-                              size = 30)
+                              size = grid.size)
   
   dt_workflow <- workflow() %>%
     add_recipe(rec_obj) %>%
