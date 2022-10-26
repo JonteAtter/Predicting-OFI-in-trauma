@@ -30,6 +30,7 @@ vi.rf <- vi(rf.fit, scale = TRUE)
 vi.rf$Importance <- vi.rf$Importance * 100/1882.342
 vi.rf$rf <- vi.rf$Importance
 vi.rf$Importance <- NULL
+
 ## CAT
 vi.cat <- catboost.get_feature_importance(extract_fit_engine(cat.fit), 
                                           pool = NULL, 
@@ -91,14 +92,16 @@ varimptable3$cat<-varimptable3$V1
 varimptable3$V1 <- NULL
 varimptable4 <- merge(varimptable3,t.dt.vi,by="Variable",all = TRUE)
 varimptable5 <- merge(varimptable4,t.lr.vi,by="Variable")
+varimptable <- varimptable5
 
+#saveRDS(varimptable, "out/varimptable.rds")
 
+#varimptable <- varimptable[order(varimptable$rf, decreasing = TRUE),]
+##label <- varimptable$Variable
+#varimptable$Variable <- factor(varimptable$Variable, levels = rev(label))
 
-?merge
-require(ggplot2)
-var.imp.table <- ggplot(varimptable3, aes(x=Gain, y=Variable)) + geom_point()
+#require(ggplot2)
+#p <- ggplot(varimptable, aes(x=rf, y=Variable)) + geom_point(colour = "blue") #+ geom_line (colour = "blue")
+#p <- p + geom_point (aes(x = xgb, y=Variable), colour = "red")
+#p <- p + geom_point (aes(x = lgb, y=Variable), colour = "green")
 
-var.imp.plot <-plot(x = as.numeric(varimptable3$Gain), y = varimptable3$Variable, xlab = "Age",
-     ylab = "Circumference", main = "Age VS Circumference",
-     col.lab = "darkgreen", col.main = "darkgreen",
-     col.axis = "darkgreen")
