@@ -4,19 +4,12 @@ library(treesnip)
 library(doParallel)
 library(yaml)
 
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
-
-cat_hyperopt <- function(data) {
+cat_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/cat.rds")){
     model <- readRDS("out/cat.rds")
     
     return(model)
   }  
-  
-  folds <- vfold_cv(data, v = 5, strata = ofi)
-  
-  rec_obj <- recipe(ofi ~ ., data = data)
   
   cat_model <-
     boost_tree(
@@ -24,7 +17,7 @@ cat_hyperopt <- function(data) {
       tree_depth = tune(),
       min_n = tune(),
       #loss_reduction = tune(),
-      #sample_size = tune(),
+      #subsample = tune(),
       mtry = tune(),
       learn_rate = tune(),
     ) %>%
@@ -35,14 +28,15 @@ cat_hyperopt <- function(data) {
                                tree_depth(),
                                min_n(),
                                #loss_reduction(),
-                               #sample_size = sample_prop(),
-                               finalize(mtry(), data),
+                               #subsample = sample_prop(),
+                               finalize(mtry(), hyperopt.folds$splits[[1]]$data),
                                learn_rate(),
-                               size = 30)
+                               size = grid.size)
   
   cat_workflow <- workflow() %>%
-    add_recipe(rec_obj) %>%
-    add_model(cat_model)
+    add_model(cat_model) %>%
+    add_formula(ofi ~ .)
+  
   
   cat_tune <- cat_workflow %>%
     tune_grid(
@@ -55,9 +49,6 @@ cat_hyperopt <- function(data) {
   tuned_model <-
     cat_model %>%
     finalize_model(select_best(cat_tune))
-  
-  print(show_best(cat_tune, "roc_auc")$mean[1])
-  print(tuned_model)
   
   saveRDS(tuned_model, "out/cat.rds")
   
