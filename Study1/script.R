@@ -10,19 +10,22 @@
 
 ## Lock seed
 set.seed(2022)
-
+setwd("~/R/dynamic-identification-ofi/Study1")
 ## Activate multithreading
 library(doParallel)
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
+#all_cores <- parallel::detectCores(logical = FALSE)
+#registerDoParallel(cores = all_cores)
 
 ## Load packages
-packages <- c("rofi","Gmisc", "stringr", "dplyr", "labelled", "DBI", 
+packages <- c("rofi","finetune","tabnet","Gmisc", "stringr", "dplyr", "labelled", "DBI", 
               "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", 
               "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret",
               "treesnip", "tidymodels", "doParallel", "treesnip", "baguette", 
               "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
               "kknn", "Rmisc", "smotefamily")
+
+#library(tabnet)
+#library(finetune)
 for (package in packages) library(package, character.only = TRUE)
 
 setwd("~/R/dynamic-identification-ofi/Study1")
@@ -61,18 +64,20 @@ clean.dataset <- combine_rts(clean.dataset)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  "cat" = cat_hyperopt,
-  "dt" = dt_hyperopt,
-  "knn" = knn_hyperopt,
-  "lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt,
-  "xgb" = xgb_hyperopt
+  #"cat" = cat_hyperopt,
+  #"dt" = dt_hyperopt,
+  #"knn" = knn_hyperopt,
+  #"lgb" = lgb_hyperopt,
+  #"lr" = lr_hyperopt,
+  "rf" = rf_hyperopt
+  #"svm" = svm_hyperopt,
+  #"xgb" = xgb_hyperopt
 )
 
 # Settings
 data.fraction = 1 # Used for debugging
+hyperopt.grid.size = 10
+hyperopt.n.folds = 3
 n.resamples = 10
 train.fraction <- 0.8
 
@@ -87,7 +92,7 @@ results <- list()
 # Use a fraction of the dataset for debugging fast
 clean.dataset <- clean.dataset[sample(nrow(clean.dataset), floor(nrow(clean.dataset) * data.fraction)),]
 
-# First boot
+# First resample
 train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
 
 trained.preprocessor  <- clean.dataset[train.sample, ] %>% remove_columns() %>% preprocess_data()
@@ -104,12 +109,32 @@ test.data <- trained.preprocessor %>% bake(new_data = test.data)
 test.target <- test.data$ofi
 test.data <- subset(test.data, select = -ofi)
 
+hyperopt.folds <- vfold_cv(train.data, v = hyperopt.n.folds, strata = ofi)
+
+# Upsample training data in each fold to avoid data leakage
+for(i in 1:length(hyperopt.folds$splits)){
+  fold.train.data <- as.data.frame(hyperopt.folds$splits[[i]])
+  fold.data <- hyperopt.folds$splits[[i]]$data
+  
+  fold.length <- nrow(fold.data)
+
+  fold.syn.data <- smotefamily::ADAS(subset(fold.train.data, select = -ofi), fold.train.data$ofi)$syn_data
+  colnames(fold.syn.data)[colnames(fold.syn.data) == "class"] ="ofi"
+  fold.syn.data$ofi <- as.factor(fold.syn.data$ofi)
+  
+  hyperopt.folds$splits[[i]]$data <- rbind(fold.data, fold.syn.data)
+  
+  syn.data.idxs <- fold.length:nrow(hyperopt.folds$splits[[i]]$data)
+  
+  hyperopt.folds$splits[[i]]$in_id <- append(hyperopt.folds$splits[[i]]$in_id, syn.data.idxs)
+}
+
+# Upsample train data for fitting
 train.data <- smotefamily::ADAS(subset(train.data, select = -ofi), train.data$ofi)$data
 colnames(train.data)[colnames(train.data) == "class"] ="ofi"
 train.data$ofi <- as.factor(train.data$ofi)
 
 resample.results <- list("target" = test.target)
-
 pb <- progress::progress_bar$new(format = "HYPEROPTING :spin [:bar] :current/:total | :elapsedfull",
                                  total = length(models.hyperopt), show_after=0) 
 
@@ -118,8 +143,7 @@ for (model.name in names(models.hyperopt)){
 
   hyperopt <- models.hyperopt[model.name][[1]]
   
-  
-  model <- hyperopt(train.data)
+  model <- hyperopt(hyperopt.folds, grid.size = hyperopt.grid.size)
   
   model.fitted <- fit(model, ofi ~ ., data = train.data)
   
@@ -190,12 +214,6 @@ for(resample in results){
     
     statistics[[model.name]][["auc"]] <- statistics[[model.name]][["auc"]] %>% 
       append(ROCR::performance(test.preds, measure = "auc")@y.values[[1]][1])
-
-    statistics[[model.name]][["aucpr"]] <- statistics[[model.name]][["aucpr"]] %>% 
-      append(ROCR::performance(test.preds, measure = "aucpr")@y.values[[1]][1])
-    
-    statistics[[model.name]][["f"]] <- statistics[[model.name]][["f"]] %>% 
-      append(ROCR::performance(test.preds, measure = "f")@y.values[[1]][1])
     
     # Get predicted classes using 0.5 as cut off
     test.pred.classes <- as.numeric(test.probs >= 0.5) + 1
@@ -204,11 +222,12 @@ for(resample in results){
     statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
       append(sum(test.pred.classes == target, na.rm = TRUE) / length(test.probs))
     
-    # ICI recommends > 1000 observations
     statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
       append(gmish::ici(test.probs, target - 1))
   }
 }
+
+saveRDS(statistics, file = sprintf("%s/statistics.rds", run.out.dir))
 
 for (model.name in names(statistics)){
   message(model.name)
@@ -219,14 +238,6 @@ for (model.name in names(statistics)){
   
   message("ACC")
   print(CI(statistics[[model.name]][["acc"]], ci=0.95))
-  message("")
-  
-  message("AUCPR")
-  print(CI(statistics[[model.name]][["aucpr"]], ci=0.95))
-  message("")
-  
-  message("f")
-  print(CI(statistics[[model.name]][["f"]], ci=0.95))
   message("")
   
   message("ICI")
