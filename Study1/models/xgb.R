@@ -8,8 +8,6 @@ xgb_hyperopt <- function(folds, grid.size = 30) {
     return(model)
   }  
   
-  rec_obj <- recipe(ofi ~ ., data = data)
-  
   xgb_model <-
     boost_tree(
       trees = tune(),
