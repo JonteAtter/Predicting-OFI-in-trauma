@@ -53,7 +53,7 @@ data <- subset(data,
                            ,Problemomrade_.FMP
                            ,Gender
                            ,Kön
-                           ,Tr_Nivå
+                           ,Tr_Nivå   ### härifrån bantat pga stor tabell. 
                            ,korrekt_triage
                            ,ed_tta
                            ,TraumaAlarmCriteria

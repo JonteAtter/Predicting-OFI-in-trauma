@@ -10,21 +10,25 @@
 
 ## Lock seed
 set.seed(2022)
-
+setwd("~/R/dynamic-identification-ofi/Study1")
 ## Activate multithreading
 library(doParallel)
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
+#all_cores <- parallel::detectCores(logical = FALSE)
+#registerDoParallel(cores = all_cores)
 
 ## Load packages
-packages <- c("rofi","Gmisc", "stringr", "dplyr", "labelled", "DBI", 
+packages <- c("rofi","finetune","tabnet","Gmisc", "stringr", "dplyr", "labelled", "DBI", 
               "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", 
               "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret",
               "treesnip", "tidymodels", "doParallel", "treesnip", "baguette", 
               "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
               "kknn", "Rmisc", "smotefamily")
+
+#library(tabnet)
+#library(finetune)
 for (package in packages) library(package, character.only = TRUE)
 
+setwd("~/R/dynamic-identification-ofi/Study1")
 ## Load functions
 source("functions/functions.R")
 
@@ -61,12 +65,12 @@ clean.dataset <- combine_rts(clean.dataset)
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
   #"cat" = cat_hyperopt,
-  "dt" = dt_hyperopt,
-  "knn" = knn_hyperopt,
-  "lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt
+  #"dt" = dt_hyperopt,
+  #"knn" = knn_hyperopt,
+  #"lgb" = lgb_hyperopt,
+  #"lr" = lr_hyperopt,
+  "rf" = rf_hyperopt
+  #"svm" = svm_hyperopt,
   #"xgb" = xgb_hyperopt
 )
 
@@ -222,6 +226,8 @@ for(resample in results){
       append(gmish::ici(test.probs, target - 1))
   }
 }
+
+saveRDS(statistics, file = sprintf("%s/statistics.rds", run.out.dir))
 
 for (model.name in names(statistics)){
   message(model.name)
