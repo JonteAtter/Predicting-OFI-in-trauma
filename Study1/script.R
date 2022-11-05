@@ -83,10 +83,10 @@ models.hyperopt <- c(
 )
 
 # Settings
-data.fraction = 1 # Used for debugging
-hyperopt.grid.size = 30
-hyperopt.n.folds = 5
-n.resamples = 1000
+data.fraction <- 1 # Used for debugging
+hyperopt.grid.size <- 30
+hyperopt.n.folds <- 5
+n.resamples <- 1000
 train.fraction <- 0.8
 n.varimp.permutations <- 5
 
