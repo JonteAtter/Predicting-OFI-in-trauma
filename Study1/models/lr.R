@@ -1,5 +1,4 @@
 library(tidymodels)
-library(doParallel)
 library(tidypredict)
 
 lr_hyperopt <- function(folds, grid.size = 30) {

@@ -1,5 +1,4 @@
 library(tidymodels)
-library(doParallel)
 library(baguette)
 
 dt_hyperopt <- function(folds, grid.size = 30) {

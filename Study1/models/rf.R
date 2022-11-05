@@ -1,5 +1,4 @@
 library(tidymodels)
-library(doParallel)
 
 rf_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/rf.rds")){

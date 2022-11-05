@@ -63,7 +63,6 @@ formated.data$NumberOfActions <- as.numeric(formated.data$NumberOfActions)
 formated.data$NumberOfInjuries <- as.numeric(formated.data$NumberOfInjuries)
 
 formated.data$dt_ed_norm_be <- as.numeric(formated.data$dt_ed_norm_be)
-test <- as.numeric(dataset.clean.af$dt_ed_norm_be)
 ###### I Used summary to check each category, to my knowledge they follow the swetrau-manual
 ###### Need to add some better screening tool
 
