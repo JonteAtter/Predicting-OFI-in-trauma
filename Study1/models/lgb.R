@@ -1,6 +1,5 @@
 library(tidymodels)
 library(treesnip)
-library(doParallel)
 
 lgb_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/lgb.rds")){
@@ -11,7 +10,8 @@ lgb_hyperopt <- function(folds, grid.size = 30) {
   
   lgb_model <-
     boost_tree(
-      trees = tune(),
+      #trees = tune(),
+      trees = 500,
       tree_depth = tune(),
       min_n = tune(),
       loss_reduction = tune(),
@@ -19,16 +19,16 @@ lgb_hyperopt <- function(folds, grid.size = 30) {
       mtry = tune(),
       learn_rate = tune(),
     ) %>%
-    set_engine("lightgbm") %>%
+    set_engine("lightgbm") %>% #
     set_mode("classification")
   
   lgb_grid <- grid_max_entropy(
-    trees(),
+    #trees(),
     tree_depth(),
     min_n(),
     loss_reduction(),
     #sample_size = sample_prop(c(0.4, 0.9)),
-    finalize(mtry(), hyperopt.folds$splits[[1]]$data),
+    finalize(mtry(), folds$splits[[1]]$data),
     learn_rate(),
     size = grid.size
   )

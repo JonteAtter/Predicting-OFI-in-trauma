@@ -1,5 +1,4 @@
 library(tidymodels)
-library(doParallel)
 
 svm_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/svm.rds")){
