@@ -7,4 +7,4 @@ source("functions/remove_columns.R")
 source("functions/clean_all_predictors.R")
 source("functions/format_table1.R")
 source("functions/combine_rts.R")
-
+source("functions/permutation_importance.R")

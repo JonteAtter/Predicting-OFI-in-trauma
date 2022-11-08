@@ -1,5 +1,4 @@
 library(tidymodels)
-library(doParallel)
 
 xgb_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/xgb.rds")){
@@ -7,8 +6,6 @@ xgb_hyperopt <- function(folds, grid.size = 30) {
     
     return(model)
   }  
-  
-  rec_obj <- recipe(ofi ~ ., data = data)
   
   xgb_model <-
     boost_tree(
@@ -29,7 +26,7 @@ xgb_hyperopt <- function(folds, grid.size = 30) {
     min_n(),
     loss_reduction(),
     sample_size = sample_prop(),
-    finalize(mtry(), hyperopt.folds$splits[[1]]$data),
+    finalize(mtry(), folds$splits[[1]]$data),
     learn_rate(),
     size = grid.size
   )

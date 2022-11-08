@@ -1,8 +1,6 @@
 library(tidymodels)
 # remotes::install_github("curso-r/treesnip@catboost")
 library(treesnip)
-library(doParallel)
-library(yaml)
 
 cat_hyperopt <- function(folds, grid.size = 30) {
   if(file.exists("out/cat.rds")){
@@ -29,7 +27,7 @@ cat_hyperopt <- function(folds, grid.size = 30) {
                                min_n(),
                                #loss_reduction(),
                                #subsample = sample_prop(),
-                               finalize(mtry(), hyperopt.folds$splits[[1]]$data),
+                               finalize(mtry(), folds$splits[[1]]$data),
                                learn_rate(),
                                size = grid.size)
   

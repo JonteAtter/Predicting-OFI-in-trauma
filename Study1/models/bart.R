@@ -1,8 +1,4 @@
 library(tidymodels)
-library(doParallel)
-
-all_cores <- parallel::detectCores(logical = FALSE)
-registerDoParallel(cores = all_cores)
 
 bart_hyperopt <- function(data) {
   if(file.exists("out/bart.rds")){
