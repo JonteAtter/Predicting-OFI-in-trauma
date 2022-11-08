@@ -19,9 +19,9 @@ lgb_hyperopt <- function(folds, grid.size = 30) {
       mtry = tune(),
       learn_rate = tune(),
     ) %>%
-    set_engine("lightgbm") %>%
+    set_engine("lightgbm", nthread = 1) %>%
     set_mode("classification")
-  
+ 
   lgb_grid <- grid_max_entropy(
     trees(),
     tree_depth(),

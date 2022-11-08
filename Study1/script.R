@@ -24,8 +24,6 @@ packages <- c("rofi","finetune","tabnet","Gmisc", "stringr", "dplyr", "labelled"
               "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
               "kknn", "Rmisc", "smotefamily")
 
-#library(tabnet)
-#library(finetune)
 for (package in packages) library(package, character.only = TRUE)
 
 setwd("~/R/dynamic-identification-ofi/Study1")
@@ -64,21 +62,21 @@ clean.dataset <- combine_rts(clean.dataset)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  #"cat" = cat_hyperopt,
-  #"dt" = dt_hyperopt,
-  #"knn" = knn_hyperopt,
-  #"lgb" = lgb_hyperopt,
-  #"lr" = lr_hyperopt,
-  "rf" = rf_hyperopt
-  #"svm" = svm_hyperopt,
-  #"xgb" = xgb_hyperopt
+  "cat" = cat_hyperopt,
+  "dt" = dt_hyperopt,
+  "knn" = knn_hyperopt,
+  "lgb" = lgb_hyperopt,
+  "lr" = lr_hyperopt,
+  "rf" = rf_hyperopt,
+  "svm" = svm_hyperopt
+ # "xgb" = xgb_hyperopt
 )
 
 # Settings
 data.fraction = 1 # Used for debugging
 hyperopt.grid.size = 10
 hyperopt.n.folds = 3
-n.resamples = 10
+n.resamples = 1000
 train.fraction <- 0.8
 
 # Create run out dir
@@ -105,6 +103,10 @@ saveRDS(test.data, file = sprintf("%s/test_data.rds", run.out.dir))
 
 train.data <- trained.preprocessor %>% bake(new_data = NULL)
 test.data <- trained.preprocessor %>% bake(new_data = test.data)
+
+### New code to reduce train.data
+#train.data <- train.data[sample(nrow(train.data), ceiling(nrow(train.data) * 0.5)), ]
+### End new code
 
 test.target <- test.data$ofi
 test.data <- subset(test.data, select = -ofi)
@@ -137,6 +139,8 @@ train.data$ofi <- as.factor(train.data$ofi)
 resample.results <- list("target" = test.target)
 pb <- progress::progress_bar$new(format = "HYPEROPTING :spin [:bar] :current/:total | :elapsedfull",
                                  total = length(models.hyperopt), show_after=0) 
+
+
 
 for (model.name in names(models.hyperopt)){
   pb$tick(0)

@@ -9,7 +9,8 @@ lgb<- readRDS("out/lgb.old.rds")
 lr<- readRDS("out/lr.old.rds")
 svm<- readRDS("out/rf.old.rds") # Ej klart
 xgb<- readRDS("out/xgb.old.rds") 
-
+#train.data <- readRDS("out/22-10-26-09-50/train_data.rds") 
+#test.data <- readRDS("out/22-10-26-09-50/test_data.rds") 
 # VI kräver ofta fit
 rf.fit  <- fit(rf, ofi ~ ., data = train.data)
 cat.fit <- fit(cat, ofi ~ ., data = train.data)
