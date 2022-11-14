@@ -33,12 +33,8 @@ xgb_hyperopt <- function(folds, grid.size = 30) {
   
   xgb_workflow <- workflow() %>%
     add_model(xgb_model) %>%
-    update_role(everything()) %>%
-    update_role(ofi, new_role = "outcome")
- ## Old
-#  xgb_workflow <- workflow() %>%
-#    add_model(xgb_model) %>%
-#    add_formula(ofi ~ .)
+    add_formula(ofi ~ .)
+  
   
   xgb_tune <- xgb_workflow %>%
     tune_grid(
