@@ -72,13 +72,13 @@ clean.dataset <- combine_rts(clean.dataset)
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  "cat" = cat_hyperopt,
-  "dt" = dt_hyperopt,
-  "knn" = knn_hyperopt,
-  "lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt,
+  #"cat" = cat_hyperopt,
+  #"dt" = dt_hyperopt,
+  #"knn" = knn_hyperopt,
+  #"lgb" = lgb_hyperopt,
+  #"lr" = lr_hyperopt,
+  #"rf" = rf_hyperopt,
+  #"svm" = svm_hyperopt,
   "xgb" = xgb_hyperopt
 )
 
@@ -147,7 +147,7 @@ for(idx.resample in 1:n.resamples){
       hyperopt.folds$splits[[idx.fold]]$in_id <- append(hyperopt.folds$splits[[idx.fold]]$in_id, syn.data.idxs)
     }
     
-
+    
     for (model.name in names(models.hyperopt)){
       hyperopt <- models.hyperopt[model.name][[1]]
       
@@ -212,9 +212,11 @@ for(resample in results){
     # Calculate accuracy using said cut off
     statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
       append(sum(test.pred.classes == target, na.rm = TRUE) / length(test.probs))
-    
+      
+    target <- ifelse(target=="Yes",1,0)
     statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
-      append(gmish::ici(test.probs, target - 1))
+       append(gmish::ici(test.probs, target - 1))
+      
   }
 }
 
@@ -256,4 +258,3 @@ for (model.name in names(statistics)){
   print(CI(statistics[[model.name]][["ici"]], ci=0.95))
   message("\n")
 }
-
