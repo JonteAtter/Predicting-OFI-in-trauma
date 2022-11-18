@@ -110,7 +110,10 @@ for(idx.resample in 1:n.resamples){
   pb$message(sprintf("%s | Starting resample %s of %s", Sys.time(), idx.resample, n.resamples))
   
   train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
-  
+
+  ## Wouldn't it make more sense to remove these columns earlier in
+  ## the code, for example after clean.dataset on line 103 above,
+  ## instead of having to do it in each resample?
   train.data.orig <- clean.dataset[train.sample, ] %>% remove_columns()
   test.data.orig <- clean.dataset[-train.sample, ] %>% remove_columns()
   
