@@ -111,9 +111,9 @@ for(idx.resample in 1:n.resamples){
   
   train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
 
-  ## Wouldn't it make more sense to remove these columns earlier in
-  ## the code, for example after clean.dataset on line 103 above,
-  ## instead of having to do it in each resample?
+  ## Remove unnecessary/non-swetrau columns each resample. 
+  ## The audit filters features in clean.dataset are needed later in the resample
+  ## to calculate their performance.
   train.data.orig <- clean.dataset[train.sample, ] %>% remove_columns()
   test.data.orig <- clean.dataset[-train.sample, ] %>% remove_columns()
   
