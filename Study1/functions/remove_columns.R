@@ -59,6 +59,7 @@ data <- subset(data,
                            ,TraumaAlarmCriteria
                            ,ed_be_art_NotDone
                            ,ed_intubated
-                           ,pre_intubated))
+                           ,pre_intubated
+                           ,DOA))
 return(data)
 }

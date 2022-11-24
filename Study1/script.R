@@ -19,10 +19,10 @@ registerDoParallel(cores = all_cores)
 ## Load packages
 packages <- c("rofi","finetune","tabnet","Gmisc", "stringr", "dplyr", "labelled", "DBI", 
               "RMariaDB", "dotenv", "keyring", "remotes", "boot", "DiagrammeR", 
-              "tableone", "table1", "dplyr", "kableExtra", "lattice", "caret",
+              "tableone", "table1", "dplyr", "kableExtra", "lattice",
               "treesnip", "tidymodels", "treesnip", "baguette", 
               "gmish", "progress", "dbarts", "lightgbm", "catboost", "rpart",
-              "kknn", "Rmisc", "smotefamily")
+              "kknn", "Rmisc", "smotefamily","caret")
 
 #library(tabnet)
 #library(finetune)
@@ -66,19 +66,23 @@ dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
 ## Fix formating and remove wrong values like 999
 clean.dataset <- clean_all_predictors(dataset.clean.af)
 
+# Remove DOA 
+
+clean.dataset2 <- DOA(clean.dataset)
+
 ## Integrate RTS 
-clean.dataset <- combine_rts(clean.dataset)
+clean.dataset <- combine_rts(clean.dataset2)
 
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  #"cat" = cat_hyperopt,
-  #"dt" = dt_hyperopt,
-  #"knn" = knn_hyperopt,
-  #"lgb" = lgb_hyperopt,
-  #"lr" = lr_hyperopt,
-  #"rf" = rf_hyperopt,
-  #"svm" = svm_hyperopt,
+  "cat" = cat_hyperopt,
+  "dt" = dt_hyperopt,
+  "knn" = knn_hyperopt,
+  "lgb" = lgb_hyperopt,
+  "lr" = lr_hyperopt,
+  "rf" = rf_hyperopt,
+  "svm" = svm_hyperopt,
   "xgb" = xgb_hyperopt
 )
 
@@ -111,9 +115,9 @@ for(idx.resample in 1:n.resamples){
   
   train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
 
-  ## Wouldn't it make more sense to remove these columns earlier in
-  ## the code, for example after clean.dataset on line 103 above,
-  ## instead of having to do it in each resample?
+  ## Remove unnecessary/non-swetrau columns each resample. 
+  ## The audit filters features in clean.dataset are needed later in the resample
+  ## to calculate their performance.
   train.data.orig <- clean.dataset[train.sample, ] %>% remove_columns()
   test.data.orig <- clean.dataset[-train.sample, ] %>% remove_columns()
   
@@ -165,7 +169,7 @@ for(idx.resample in 1:n.resamples){
   train.data$ofi <- as.factor(train.data$ofi)
   
   resample.results <- list("target" = test.target)
-  resample.var.imps <- list()
+ # resample.var.imps <- list()
   
   for (model.name in names(models)){
     model <- models[model.name][[1]]
@@ -178,21 +182,21 @@ for(idx.resample in 1:n.resamples){
     pb$message(sprintf("%s | Predicting %s.", Sys.time(), model.name))
     resample.results[[model.name]] <- predict(model.fitted, test.data, type = "prob") %>% pull(2)
     
-    pb$message(sprintf("%s | Calculating variable importance for %s.", Sys.time(), model.name))
-    resample.var.imps[[model.name]] <- permutation.importance(test.data.orig, model.fitted, n.varimp.permutations, trained.preprocessor)
+    #pb$message(sprintf("%s | Calculating variable importance for %s.", Sys.time(), model.name))
+    #resample.var.imps[[model.name]] <- permutation.importance(test.data.orig, model.fitted, n.varimp.permutations, trained.preprocessor)
   }
   
   resample.results[["auditfilter"]] <- audit_filters_predict(clean.dataset[-train.sample, ])
   
   results <- append(results, list(resample.results))
-  variable.importances <- append(variable.importances, list(resample.var.imps))
+  #variable.importances <- append(variable.importances, list(resample.var.imps))
   
   pb$message(sprintf("%s | Resample %s of %s done.", Sys.time(), idx.resample, n.resamples))
   pb$tick()
 }
 
 saveRDS(results, file = sprintf("%s/results.rds", run.out.dir))
-saveRDS(variable.importances, file = sprintf("%s/variable_importances.rds", run.out.dir))
+#saveRDS(variable.importances, file = sprintf("%s/variable_importances.rds", run.out.dir))
 
 statistics <- c()
 
@@ -224,25 +228,25 @@ for(resample in results){
 }
 
 # unpack resample variable importances
-for(resample in variable.importances){
-  model.names <-  names(resample)
-  
-  for(model.name in model.names){
-    model.var.imps <- resample[[model.name]]
-    
-    for(feature in names(model.var.imps)){
-      feature.imp <- model.var.imps[[feature]]
-      
-      if(is.null(statistics[[model.name]][["variable.importances"]][[feature]])){
-        statistics[[model.name]][["variable.importances"]][[feature]] <- c(feature.imp)
-      } else {
-        statistics[[model.name]][["variable.importances"]][[feature]] <- append(
-          statistics[[model.name]][["variable.importances"]][[feature]], feature.imp
-        )
-      }
-    }
-  }
-}
+#for(resample in variable.importances){
+#  model.names <-  names(resample)
+#  
+#  for(model.name in model.names){
+#    model.var.imps <- resample[[model.name]]
+#    
+#    for(feature in names(model.var.imps)){
+#      feature.imp <- model.var.imps[[feature]]
+#      
+#      if(is.null(statistics[[model.name]][["variable.importances"]][[feature]])){
+#        statistics[[model.name]][["variable.importances"]][[feature]] <- c(feature.imp)
+#      } else {
+#        statistics[[model.name]][["variable.importances"]][[feature]] <- append(
+#          statistics[[model.name]][["variable.importances"]][[feature]], feature.imp
+#        )
+#      }
+#    }
+#  }
+#}
 
 saveRDS(statistics, file = sprintf("%s/statistics.rds", run.out.dir))
 
