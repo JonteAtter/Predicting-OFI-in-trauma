@@ -51,6 +51,7 @@ test.data[test.data == 999] <- NA
 test.data[test.data == 9999] <- NA #### Consider removing since 9999 actually means not relevant?
 test.data[, -which(names(test.data) %in% var.99)][test.data[, -which(names(test.data) %in% var.99)] == 99 ] <- NA
 
+
 ##### Fix formating to factor/numeric for easy screening
 
 formated.data <- test.data

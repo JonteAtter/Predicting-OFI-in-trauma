@@ -62,9 +62,14 @@ missing.outcome <- is.na(dataset.clean.af$ofi)
 n.missing.outcome <- sum(missing.outcome)
 dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
 
+## sep and store cases with age < 15
+age15 <- dataset.clean.af[dataset.clean.af$pt_age_yrs <= 14, ]
+n.sum.age15 <- nrow(age15)
+
+dataset.comp.age <- dataset.clean.af[dataset.clean.af$pt_age_yrs > 14, ]
 
 ## Fix formating and remove wrong values like 999
-clean.dataset <- clean_all_predictors(dataset.clean.af)
+clean.dataset <- clean_all_predictors(dataset.comp.age)
 
 # Remove DOA 
 
@@ -220,7 +225,7 @@ for(resample in results){
     statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
       append(sum(test.pred.classes == target, na.rm = TRUE) / length(test.probs))
       
-    target <- ifelse(target=="Yes",1,0)
+   # target <- ifelse(target=="Yes",1,0)
     statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
        append(gmish::ici(test.probs, target - 1))
       
