@@ -10,8 +10,10 @@ library(ROCR)
 library(gmish)
 
 dir <- "out/22-11-08-10-24"
+xgb.dir <- "out/23-01-10-19-05"
 
 results <- readRDS(sprintf("%s/results.rds", dir))
+xgb.results <- readRDS(sprintf("%s/results.rds", xgb.dir))
 
 metrics <- list()
 cutoff <- list()
@@ -48,11 +50,18 @@ for (resample.idx in 1:length(results)){
 }
 
 for (resample.idx in 1:length(results)){
-  resample <- results[[resample.idx]]
-  target <- as.numeric(resample[["target"]])
-
   for(model.name in model.names){
-    probs <- resample[[model.name]]
+    # override xgb due to bug in code during first run
+    if(model.name == "xgb"){
+      resample <- xgb.results[[resample.idx]]
+      probs <- resample[[model.name]]
+      target <- as.numeric(resample[["target"]])
+      
+    } else {
+      resample <- results[[resample.idx]]
+      probs <- resample[[model.name]]
+      target <- as.numeric(resample[["target"]])
+    }
     
     if(resample.idx == 1){
       if(model.name == "knn"){
