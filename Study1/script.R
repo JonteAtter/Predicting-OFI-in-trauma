@@ -29,13 +29,7 @@ packages <- c("rofi","finetune","tabnet","Gmisc", "stringr", "dplyr", "labelled"
 for (package in packages) library(package, character.only = TRUE)
 
 # Check if working dir is Study1, else try to switch to Study1
-if(tail(str_split(getwd(), "/")[[1]], n=1) != "Study1"){
-  tryCatch({
-    setwd("Study1")
-  }, error = function(error_condition) {
-    setwd("~/R/dynamic-identification-ofi/Study1")
-  })
-}
+setwd("~/R/dynamic-identification-ofi/Study1")
 
 ## Load functions
 source("functions/functions.R")
@@ -46,48 +40,16 @@ source("models/models.R")
 # Make sure out dir exists
 dir.create("out", showWarnings = FALSE)
 
-## Import data
-datasets <- rofi::import_data()
-
-## Merge data
-combined.datasets <- rofi::merge_data(datasets)
-
-## Create OFI column
-combined.datasets$ofi <- rofi::create_ofi(combined.datasets)
-
-dataset.clean.af <- clean_audit_filters(combined.datasets)
-
-## Separate and store cases without known outcome
-missing.outcome <- is.na(dataset.clean.af$ofi)
-n.missing.outcome <- sum(missing.outcome)
-dataset.clean.af <- dataset.clean.af[!missing.outcome, ]
-
-## sep and store cases with age < 15
-age15 <- dataset.clean.af[dataset.clean.af$pt_age_yrs <= 14, ]
-n.sum.age15 <- nrow(age15)
-
-dataset.comp.age <- dataset.clean.af[dataset.clean.af$pt_age_yrs > 14, ]
-
-## Fix formating and remove wrong values like 999
-clean.dataset <- clean_all_predictors(dataset.comp.age)
-
-# Remove DOA 
-
-clean.dataset2 <- DOA(clean.dataset)
-
-## Integrate RTS 
-clean.dataset <- combine_rts(clean.dataset2)
-
 # Select which models to run
 models.hyperopt <- c(
   #"bart" = bart_hyperopt, # unused tree argument bug?
-  "cat" = cat_hyperopt,
-  "dt" = dt_hyperopt,
-  "knn" = knn_hyperopt,
-  "lgb" = lgb_hyperopt,
-  "lr" = lr_hyperopt,
-  "rf" = rf_hyperopt,
-  "svm" = svm_hyperopt,
+#  "cat" = cat_hyperopt,
+#  "dt" = dt_hyperopt,
+#  "knn" = knn_hyperopt,
+#  "lgb" = lgb_hyperopt,
+#  "lr" = lr_hyperopt,
+#  "rf" = rf_hyperopt,
+#  "svm" = svm_hyperopt,
   "xgb" = xgb_hyperopt
 )
 
@@ -108,9 +70,7 @@ models <- c()
 results <- list()
 variable.importances <- list()
 
-# Use a fraction of the dataset for debugging fast
-clean.dataset <- clean.dataset[sample(nrow(clean.dataset), floor(nrow(clean.dataset) * data.fraction)),]
-
+dataset <- create.dataset(data.fraction)
 
 pb <- progress::progress_bar$new(format = "RESAMPLING :spin [:bar] :current/:total (:tick_rate/s) | :elapsedfull (:eta)",
                                  total = n.resamples, show_after=0) 
@@ -118,13 +78,13 @@ for(idx.resample in 1:n.resamples){
   pb$tick(0)
   pb$message(sprintf("%s | Starting resample %s of %s", Sys.time(), idx.resample, n.resamples))
   
-  train.sample <- sample(seq_len(nrow(clean.dataset)), size = floor(train.fraction * nrow(clean.dataset)))
+  train.sample <- sample(seq_len(nrow(dataset)), size = floor(train.fraction * nrow(dataset)))
 
   ## Remove unnecessary/non-swetrau columns each resample. 
-  ## The audit filters features in clean.dataset are needed later in the resample
+  ## The audit filters features in dataset are needed later in the resample
   ## to calculate their performance.
-  train.data.orig <- clean.dataset[train.sample, ] %>% remove_columns()
-  test.data.orig <- clean.dataset[-train.sample, ] %>% remove_columns()
+  train.data.orig <- dataset[train.sample, ] %>% remove_columns()
+  test.data.orig <- dataset[-train.sample, ] %>% remove_columns()
   
   trained.preprocessor  <- train.data.orig %>% preprocess_data()
   
@@ -191,7 +151,7 @@ for(idx.resample in 1:n.resamples){
     #resample.var.imps[[model.name]] <- permutation.importance(test.data.orig, model.fitted, n.varimp.permutations, trained.preprocessor)
   }
   
-  resample.results[["auditfilter"]] <- audit_filters_predict(clean.dataset[-train.sample, ])
+  resample.results[["auditfilter"]] <- audit_filters_predict(dataset[-train.sample, ])
   
   results <- append(results, list(resample.results))
   #variable.importances <- append(variable.importances, list(resample.var.imps))
@@ -202,71 +162,3 @@ for(idx.resample in 1:n.resamples){
 
 saveRDS(results, file = sprintf("%s/results.rds", run.out.dir))
 #saveRDS(variable.importances, file = sprintf("%s/variable_importances.rds", run.out.dir))
-
-statistics <- c()
-
-# unpack resample predictions
-for(resample in results){
-  target <- as.numeric(resample[["target"]])
-  model.names <-  names(resample)[-1]
-  
-  for(model.name in model.names){
-    test.probs <- resample[[model.name]]
-    
-    test.preds <- ROCR::prediction(test.probs, target)
-    
-    statistics[[model.name]][["auc"]] <- statistics[[model.name]][["auc"]] %>% 
-      append(ROCR::performance(test.preds, measure = "auc")@y.values[[1]][1])
-    
-    # Get predicted classes using 0.5 as cut off
-    test.pred.classes <- as.numeric(test.probs >= 0.5) + 1
-    
-    # Calculate accuracy using said cut off
-    statistics[[model.name]][["acc"]] <- statistics[[model.name]][["acc"]] %>%
-      append(sum(test.pred.classes == target, na.rm = TRUE) / length(test.probs))
-      
-   # target <- ifelse(target=="Yes",1,0)
-    statistics[[model.name]][["ici"]] <- statistics[[model.name]][["ici"]] %>%
-       append(gmish::ici(test.probs, target - 1))
-      
-  }
-}
-
-# unpack resample variable importances
-#for(resample in variable.importances){
-#  model.names <-  names(resample)
-#  
-#  for(model.name in model.names){
-#    model.var.imps <- resample[[model.name]]
-#    
-#    for(feature in names(model.var.imps)){
-#      feature.imp <- model.var.imps[[feature]]
-#      
-#      if(is.null(statistics[[model.name]][["variable.importances"]][[feature]])){
-#        statistics[[model.name]][["variable.importances"]][[feature]] <- c(feature.imp)
-#      } else {
-#        statistics[[model.name]][["variable.importances"]][[feature]] <- append(
-#          statistics[[model.name]][["variable.importances"]][[feature]], feature.imp
-#        )
-#      }
-#    }
-#  }
-#}
-
-saveRDS(statistics, file = sprintf("%s/statistics.rds", run.out.dir))
-
-for (model.name in names(statistics)){
-  message(model.name)
-  
-  message("AUC")
-  print(CI(statistics[[model.name]][["auc"]], ci=0.95))
-  message("")
-  
-  message("ACC")
-  print(CI(statistics[[model.name]][["acc"]], ci=0.95))
-  message("")
-  
-  message("ICI")
-  print(CI(statistics[[model.name]][["ici"]], ci=0.95))
-  message("\n")
-}
